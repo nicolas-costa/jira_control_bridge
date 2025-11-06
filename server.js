@@ -93,7 +93,7 @@ class JiraMCPServer {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.1.0",
+        version: "1.1.1",
         description: "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud."
       },
       {

@@ -1,5 +1,23 @@
 # Changelog - MCP Jira Server
 
+## [1.1.1] - 2025-01-XX
+
+### 🔧 Correções de Compatibilidade
+
+#### ✅ Corrigido problema de compatibilidade de nomes de ferramentas
+- **Problema:** O servidor MCP registra ferramentas com nomes usando pontos (jira.getIssue), mas clientes como Cursor normalizam convertendo para underscores (jira_getIssue), causando erro "Ferramenta desconhecida".
+- **Solução:** Modificado o switch/case no handler `CallToolRequestSchema` para aceitar ambos os formatos (pontos e underscores) como fallback.
+- **Ferramentas afetadas:**
+  - `jira.addWorklog` / `jira_addWorklog`
+  - `jira.searchJql` / `jira_searchJql`
+  - `jira.getIssue` / `jira_getIssue`
+  - `jira.getComments` / `jira_getComments`
+  - `jira.getTransitions` / `jira_getTransitions`
+  - `jira.transitionIssue` / `jira_transitionIssue`
+- **Impacto:** Mantém compatibilidade retroativa e resolve erros de "Ferramenta desconhecida" em clientes que normalizam nomes.
+
+---
+
 ## [1.1.0] - 2025-10-29
 
 ### 🔧 Correções de Prioridade ALTA
