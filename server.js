@@ -229,16 +229,22 @@ class JiraMCPServer {
       try {
         switch (name) {
           case "jira.addWorklog":
+          case "jira_addWorklog":  // Fallback para normalização do cliente
             return await this.addWorklog(args);
           case "jira.searchJql":
+          case "jira_searchJql":  // Fallback para normalização do cliente
             return await this.searchJql(args);
           case "jira.getIssue":
+          case "jira_getIssue":  // Fallback para normalização do cliente
             return await this.getIssue(args);
           case "jira.getComments":
+          case "jira_getComments":  // Fallback para normalização do cliente
             return await this.getComments(args);
           case "jira.getTransitions":
+          case "jira_getTransitions":  // Fallback para normalização do cliente
             return await this.getTransitions(args);
           case "jira.transitionIssue":
+          case "jira_transitionIssue":  // Fallback para normalização do cliente
             return await this.transitionIssue(args);
           default:
             throw new Error(`Ferramenta desconhecida: ${name}`);
