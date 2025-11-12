@@ -1,6 +1,6 @@
 # Changelog - MCP Jira Server
 
-## [1.1.1] - 2025-01-XX
+## [1.1.1] - 2025-11-06
 
 ### 🔧 Correções de Compatibilidade
 
