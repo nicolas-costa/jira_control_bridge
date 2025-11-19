@@ -109,7 +109,7 @@ class JiraMCPServer {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.1.1",
+        version: "1.2.0",
         description: "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud."
       },
       {
@@ -355,8 +355,8 @@ class JiraMCPServer {
   }
 
   // Identifica custom fields que podem ser descrição baseado no nome
-  // Retorna array de {fieldKey, fieldName, score} ordenado por relevância
-  async findDescriptionCustomFields(issueKey, fields) {
+  // Retorna array de {fieldKey, fieldName, score, value} ordenado por relevância
+  async findDescriptionCustomFields(issueKey) {
     try {
       // Obter metadados dos campos para saber os nomes
       const editmeta = await jiraFetch("GET", `/rest/api/3/issue/${encodeURIComponent(issueKey)}/editmeta`);
@@ -373,38 +373,49 @@ class JiraMCPServer {
         'content', 'conteúdo', 'conteudo'
       ];
       
-      const candidates = [];
-      
-      // Buscar custom fields que contenham palavras-chave no nome
+      // Primeiro, identificar campos candidatos pelo nome
+      const candidateFieldKeys = [];
       for (const [fieldKey, fieldMeta] of Object.entries(editmeta.fields)) {
         if (!fieldKey.startsWith('customfield_')) continue;
         
         const fieldName = fieldMeta?.name?.toLowerCase() || '';
-        const fieldValue = fields[fieldKey];
-        
-        // Verificar se tem conteúdo significativo
-        if (!this.hasSignificantContent(fieldValue)) continue;
-        
-        // Verificar se o nome contém palavras-chave de descrição
         const matchesKeyword = descriptionKeywords.some(keyword => 
           fieldName.includes(keyword.toLowerCase())
         );
         
         if (matchesKeyword) {
-          // Calcular score de relevância (mais específico = maior score)
-          let score = 1;
-          if (fieldName.includes('bug description') || fieldName.includes('bug descrição')) score += 10;
-          if (fieldName.includes('task description') || fieldName.includes('task descrição')) score += 9;
-          if (fieldName.includes('issue description') || fieldName.includes('issue descrição')) score += 8;
-          if (fieldName === 'description' || fieldName === 'descrição') score += 5;
-          
-          candidates.push({
-            fieldKey,
-            fieldName: fieldMeta.name,
-            score,
-            value: fieldValue
-          });
+          candidateFieldKeys.push(fieldKey);
         }
+      }
+      
+      if (candidateFieldKeys.length === 0) return [];
+      
+      // Buscar os campos candidatos explicitamente (fields=* não retorna todos os custom fields)
+      const fieldsList = candidateFieldKeys.join(',');
+      const allFields = await jiraFetch("GET", `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=${fieldsList}`);
+      
+      const candidates = [];
+      for (const fieldKey of candidateFieldKeys) {
+        const fieldMeta = editmeta.fields[fieldKey];
+        const fieldName = fieldMeta?.name?.toLowerCase() || '';
+        const fieldValue = allFields.fields?.[fieldKey];
+        
+        // Verificar se tem conteúdo significativo
+        if (!this.hasSignificantContent(fieldValue)) continue;
+        
+        // Calcular score de relevância (mais específico = maior score)
+        let score = 1;
+        if (fieldName.includes('bug description') || fieldName.includes('bug descrição')) score += 10;
+        if (fieldName.includes('task description') || fieldName.includes('task descrição')) score += 9;
+        if (fieldName.includes('issue description') || fieldName.includes('issue descrição')) score += 8;
+        if (fieldName === 'description' || fieldName === 'descrição') score += 5;
+        
+        candidates.push({
+          fieldKey,
+          fieldName: fieldMeta.name,
+          score,
+          value: fieldValue
+        });
       }
       
       // Ordenar por score (maior primeiro) e retornar
@@ -441,16 +452,9 @@ class JiraMCPServer {
       (typeof description === 'string' && description.trim().length === 0);
     
     if (isEmpty) {
-      // Description vazio, buscar todos os campos e procurar custom field de descrição
-      const allFieldsParams = new URLSearchParams({ fields: '*' });
-      if (expand && expand.length > 0) {
-        allFieldsParams.append('expand', expand.join(','));
-      }
-      
-      res = await jiraFetch("GET", `${path}?${allFieldsParams.toString()}`);
-      
-      // Procurar custom fields que possam ser descrição
-      const descriptionCandidates = await this.findDescriptionCustomFields(issueKey, res.fields);
+      // Description vazio, procurar custom fields que possam ser descrição
+      // A função findDescriptionCustomFields já busca os campos explicitamente
+      const descriptionCandidates = await this.findDescriptionCustomFields(issueKey);
       
       if (descriptionCandidates.length > 0) {
         // Usar o campo com maior score (mais relevante)
@@ -640,7 +644,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira iniciado');
+    console.error('🚀 Servidor MCP Jira v1.2.0 iniciado');
   }
 }
 
