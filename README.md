@@ -106,8 +106,27 @@ jira.getIssue({
 - Summary, description, status, assignee, priority, issuetype
 - Datas de criação e atualização
 - Informações do projeto
+- **Descrição inteligente**: Se o campo `description` padrão estiver vazio, o servidor automaticamente busca e identifica custom fields que possam conter a descrição baseado no nome do campo
+- `descriptionRaw`: Formato ADF original da descrição (se disponível)
+- `descriptionSource`: Indica a origem da descrição (`'standard'` ou `'custom_field:customfield_XXXXX'`)
+- `customDescriptionField`: Informações do custom field usado como descrição (se aplicável)
 
 **Nota:** Para obter comentários, use `jira.getComments` para melhor performance e controle de paginação.
+
+**🔍 Detecção Automática de Descrição Customizada:**
+Em alguns projetos do Jira, a descrição do card é armazenada em custom fields ao invés do campo `description` padrão. O servidor MCP detecta automaticamente quando `description` está vazio e:
+
+1. **Busca metadados dos campos** para obter os nomes dos custom fields
+2. **Identifica campos relevantes** que contenham palavras-chave como:
+   - "description", "descrição", "descricao"
+   - "bug description", "bug descrição"
+   - "issue description", "task description"
+   - "details", "detalhes", "content", "conteúdo"
+3. **Prioriza campos mais específicos** (ex: "Bug Description" tem prioridade sobre "Description")
+4. **Verifica conteúdo significativo** (campos vazios são ignorados)
+5. **Extrai texto** do formato ADF (Atlassian Document Format) quando necessário
+
+Esta solução é **genérica** e dev funcionar com qualquer custom field que tenha nome relacionado a descrição, não sendo necessário hardcode de IDs específicos.
 
 ### 2. **jira.addWorklog**
 Adiciona um worklog (registro de tempo) em uma issue.

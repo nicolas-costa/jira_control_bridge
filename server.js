@@ -7,6 +7,22 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import fetch from "node-fetch";
 
+// Carregar variáveis de ambiente do .env apenas em desenvolvimento
+// Em produção, as variáveis devem vir do ambiente (não usar dotenv)
+// Nota: Como estamos em ES modules, o dotenv será carregado de forma assíncrona
+// mas isso não é problema pois as variáveis são lidas quando necessário
+(async () => {
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const dotenv = await import('dotenv');
+      dotenv.config();
+    } catch (error) {
+      // dotenv não instalado ou erro ao carregar - ignorar silenciosamente
+      // Em produção, as variáveis devem vir do ambiente
+    }
+  }
+})();
+
 // ---------- Helpers ----------
 function basicAuthHeader(email, token) {
   const b64 = Buffer.from(`${email}:${token}`).toString("base64");
@@ -173,14 +189,15 @@ class JiraMCPServer {
           {
             name: "jira.getComments",
             title: "Obter Comentários",
-            description: "Obtém todos os comentários de uma issue do Jira Cloud.",
+            description: "Obtém todos os comentários de uma issue do Jira Cloud. Extrai automaticamente o texto do formato ADF.",
             inputSchema: {
               type: "object",
               required: ["issueKey"],
               properties: {
                 issueKey: { type: "string", description: "Chave da issue (ex.: ABC-123)" },
                 maxResults: { type: "integer", description: "Número máximo de comentários (padrão: 50)" },
-                orderBy: { type: "string", enum: ["created", "-created", "+created"], description: "Ordenação dos comentários" }
+                orderBy: { type: "string", enum: ["created", "-created", "+created"], description: "Ordenação dos comentários (-created = mais recentes primeiro)" },
+                startAt: { type: "integer", description: "Índice do primeiro resultado (para paginação, padrão: 0)" }
               }
             }
           },
@@ -311,19 +328,156 @@ class JiraMCPServer {
     };
   }
 
+  // Extrai texto de um nó ADF (Atlassian Document Format)
+  extractTextFromADF(adfNode) {
+    if (!adfNode || !adfNode.content) return '';
+    
+    let text = '';
+    for (const node of adfNode.content) {
+      if (node.type === 'text' && node.text) {
+        text += node.text + ' ';
+      } else if (node.content) {
+        text += this.extractTextFromADF(node) + ' ';
+      }
+    }
+    return text.trim();
+  }
+
+  // Verifica se um campo tem conteúdo significativo
+  hasSignificantContent(value) {
+    if (!value) return false;
+    if (typeof value === 'string') return value.trim().length > 10;
+    if (typeof value === 'object' && value.content) {
+      const text = this.extractTextFromADF(value);
+      return text.length > 10;
+    }
+    return false;
+  }
+
+  // Identifica custom fields que podem ser descrição baseado no nome
+  // Retorna array de {fieldKey, fieldName, score} ordenado por relevância
+  async findDescriptionCustomFields(issueKey, fields) {
+    try {
+      // Obter metadados dos campos para saber os nomes
+      const editmeta = await jiraFetch("GET", `/rest/api/3/issue/${encodeURIComponent(issueKey)}/editmeta`);
+      
+      if (!editmeta.fields) return [];
+      
+      // Palavras-chave que indicam descrição (case insensitive)
+      const descriptionKeywords = [
+        'description', 'descrição', 'descricao',
+        'bug description', 'bug descrição',
+        'issue description', 'issue descrição',
+        'task description', 'task descrição',
+        'details', 'detalhes',
+        'content', 'conteúdo', 'conteudo'
+      ];
+      
+      const candidates = [];
+      
+      // Buscar custom fields que contenham palavras-chave no nome
+      for (const [fieldKey, fieldMeta] of Object.entries(editmeta.fields)) {
+        if (!fieldKey.startsWith('customfield_')) continue;
+        
+        const fieldName = fieldMeta?.name?.toLowerCase() || '';
+        const fieldValue = fields[fieldKey];
+        
+        // Verificar se tem conteúdo significativo
+        if (!this.hasSignificantContent(fieldValue)) continue;
+        
+        // Verificar se o nome contém palavras-chave de descrição
+        const matchesKeyword = descriptionKeywords.some(keyword => 
+          fieldName.includes(keyword.toLowerCase())
+        );
+        
+        if (matchesKeyword) {
+          // Calcular score de relevância (mais específico = maior score)
+          let score = 1;
+          if (fieldName.includes('bug description') || fieldName.includes('bug descrição')) score += 10;
+          if (fieldName.includes('task description') || fieldName.includes('task descrição')) score += 9;
+          if (fieldName.includes('issue description') || fieldName.includes('issue descrição')) score += 8;
+          if (fieldName === 'description' || fieldName === 'descrição') score += 5;
+          
+          candidates.push({
+            fieldKey,
+            fieldName: fieldMeta.name,
+            score,
+            value: fieldValue
+          });
+        }
+      }
+      
+      // Ordenar por score (maior primeiro) e retornar
+      return candidates.sort((a, b) => b.score - a.score);
+    } catch (error) {
+      // Se não conseguir obter editmeta, retornar vazio (não quebrar o fluxo)
+      console.error('⚠️ Erro ao buscar metadados dos campos:', error.message);
+      return [];
+    }
+  }
+
   async getIssue(args) {
     const { issueKey, expand } = args;
     let path = `/rest/api/3/issue/${encodeURIComponent(issueKey)}`;
     
-    // Campos importantes (removido 'comment' para melhor performance - use jira.getComments)
-    const fields = "summary,description,status,assignee,created,updated,priority,issuetype,project";
-    const params = new URLSearchParams({ fields });
+    // Campos importantes - se description estiver vazio, buscaremos todos os campos
+    const baseFields = "summary,description,status,assignee,created,updated,priority,issuetype,project";
+    const params = new URLSearchParams({ fields: baseFields });
     
     if (expand && expand.length > 0) {
       params.append('expand', expand.join(','));
     }
     
-    const res = await jiraFetch("GET", `${path}?${params.toString()}`);
+    let res = await jiraFetch("GET", `${path}?${params.toString()}`);
+    
+    // Verificar se description está vazio
+    let description = res.fields?.description;
+    let descriptionText = '';
+    let descriptionSource = 'standard';
+    let customDescriptionField = null;
+    
+    const isEmpty = !description || 
+      (typeof description === 'object' && (!description.content || description.content.length === 0)) ||
+      (typeof description === 'string' && description.trim().length === 0);
+    
+    if (isEmpty) {
+      // Description vazio, buscar todos os campos e procurar custom field de descrição
+      const allFieldsParams = new URLSearchParams({ fields: '*' });
+      if (expand && expand.length > 0) {
+        allFieldsParams.append('expand', expand.join(','));
+      }
+      
+      res = await jiraFetch("GET", `${path}?${allFieldsParams.toString()}`);
+      
+      // Procurar custom fields que possam ser descrição
+      const descriptionCandidates = await this.findDescriptionCustomFields(issueKey, res.fields);
+      
+      if (descriptionCandidates.length > 0) {
+        // Usar o campo com maior score (mais relevante)
+        const bestCandidate = descriptionCandidates[0];
+        customDescriptionField = {
+          key: bestCandidate.fieldKey,
+          name: bestCandidate.fieldName
+        };
+        
+        if (bestCandidate.value) {
+          description = bestCandidate.value;
+          if (typeof description === 'object' && description.content) {
+            descriptionText = this.extractTextFromADF(description);
+          } else if (typeof description === 'string') {
+            descriptionText = description;
+          }
+          descriptionSource = `custom_field:${bestCandidate.fieldKey}`;
+        }
+      }
+    } else {
+      // Description padrão tem conteúdo
+      if (description && typeof description === 'object' && description.content) {
+        descriptionText = this.extractTextFromADF(description);
+      } else if (typeof description === 'string') {
+        descriptionText = description;
+      }
+    }
     
     // Formatar resposta de forma mais legível
     const formatted = {
@@ -332,7 +486,10 @@ class JiraMCPServer {
       self: res.self,
       fields: {
         summary: res.fields?.summary,
-        description: res.fields?.description,
+        description: descriptionText || description || null,
+        descriptionRaw: description, // Manter formato ADF original se necessário
+        descriptionSource, // Indica origem: 'standard' ou 'custom_field:customfield_XXXXX'
+        customDescriptionField, // Informações do custom field usado (se aplicável)
         status: {
           name: res.fields?.status?.name,
           id: res.fields?.status?.id,
@@ -363,31 +520,45 @@ class JiraMCPServer {
   }
 
   async getComments(args) {
-    const { issueKey, maxResults = 50, orderBy = "created" } = args;
+    const { issueKey, maxResults = 50, orderBy = "created", startAt = 0 } = args;
     const params = new URLSearchParams({
       maxResults: maxResults.toString(),
-      orderBy
+      orderBy,
+      startAt: startAt.toString()
     });
     
     const res = await jiraFetch("GET", `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment?${params.toString()}`);
     
-    const comments = (res.comments || []).map(c => ({
-      id: c.id,
-      author: {
-        displayName: c.author?.displayName,
-        emailAddress: c.author?.emailAddress,
-        accountId: c.author?.accountId
-      },
-      body: c.body,
-      created: c.created,
-      updated: c.updated,
-      visibility: c.visibility
-    }));
+    const comments = (res.comments || []).map(c => {
+      // Extrair texto do formato ADF se o body for um objeto ADF
+      let bodyText = '';
+      let bodyRaw = c.body;
+      
+      if (c.body && typeof c.body === 'object' && c.body.content) {
+        bodyText = this.extractTextFromADF(c.body);
+      } else if (typeof c.body === 'string') {
+        bodyText = c.body;
+      }
+      
+      return {
+        id: c.id,
+        author: {
+          displayName: c.author?.displayName,
+          emailAddress: c.author?.emailAddress,
+          accountId: c.author?.accountId
+        },
+        body: bodyText || bodyRaw, // Retornar texto extraído, ou raw se não conseguir extrair
+        bodyRaw: bodyRaw, // Manter formato ADF original para referência
+        created: c.created,
+        updated: c.updated,
+        visibility: c.visibility
+      };
+    });
     
     return {
       content: [{
         type: "text",
-        text: `💬 **Comentários da issue ${issueKey} (${res.total} total):**\n\n\`\`\`json\n${JSON.stringify({ total: res.total, maxResults: res.maxResults, comments }, null, 2)}\n\`\`\``
+        text: `💬 **Comentários da issue ${issueKey} (${res.total} total, mostrando ${comments.length}):**\n\n\`\`\`json\n${JSON.stringify({ total: res.total, startAt: res.startAt || 0, maxResults: res.maxResults, comments }, null, 2)}\n\`\`\``
       }]
     };
   }

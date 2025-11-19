@@ -1,5 +1,79 @@
 # Changelog - MCP Jira Server
 
+## [1.2.0] - 2025-11-19
+
+### ✨ Novas Funcionalidades
+
+#### ✅ Detecção Genérica de Custom Fields de Descrição
+- **Problema:** Alguns projetos do Jira usam custom fields para armazenar descrição ao invés do campo `description` padrão. A implementação anterior era hardcoded para um campo específico.
+- **Solução:** Implementada detecção automática e genérica de custom fields que podem conter descrição:
+  - Busca metadados dos campos via `editmeta` para obter nomes dos campos
+  - Identifica campos com nomes relacionados a descrição (description, descrição, bug description, task description, etc.)
+  - Prioriza campos mais específicos usando sistema de score
+  - Verifica conteúdo significativo antes de usar
+  - Extrai texto do formato ADF automaticamente
+- **Campos retornados:**
+  - `description`: Texto extraído (do custom field se description padrão estiver vazio)
+  - `descriptionSource`: Indica origem (`'standard'` ou `'custom_field:customfield_XXXXX'`)
+  - `customDescriptionField`: Informações do custom field usado
+  - `descriptionRaw`: Formato ADF original
+- **Impacto:** Solução genérica que funciona com qualquer custom field de descrição, sem necessidade de hardcode
+
+#### ✅ Melhorias na API de Comentários
+- **Problema:** Comentários retornavam objeto ADF completo, não legível
+- **Solução:** 
+  - Extração automática de texto do formato ADF usando `extractTextFromADF()`
+  - Retorna tanto `body` (texto extraído) quanto `bodyRaw` (ADF original)
+  - Adicionado suporte a paginação via parâmetro `startAt`
+- **Impacto:** Comentários agora são legíveis diretamente, facilitando uso
+
+#### ✅ Suporte a Testes Locais com dotenv
+- **Adicionado:** 
+  - `dotenv` como devDependency
+  - Carregamento automático de `.env` em desenvolvimento
+  - Arquivo `.env.example` como template
+  - Script `test_local.js` para testes locais
+  - Comando `npm run test:local` para executar testes
+- **Impacto:** Facilita desenvolvimento e testes locais sem expor credenciais no código
+
+### 🔧 Melhorias Técnicas
+
+#### ✅ Refatoração de `getIssue`
+- Busca custom fields de descrição apenas quando `description` padrão está vazio
+- Usa `editmeta` para identificar campos relevantes
+- Implementa sistema de score para priorizar campos mais específicos
+- Função `findDescriptionCustomFields()` para lógica reutilizável
+
+#### ✅ Melhorias em `getComments`
+- Extração de texto ADF implementada
+- Suporte a paginação (`startAt`)
+- Retorno inclui informações de paginação (`startAt`, `maxResults`, `total`)
+
+### 📚 Documentação
+
+- ✅ README atualizado com explicação da detecção genérica de custom fields
+- ✅ Documentação de novos campos retornados (`descriptionSource`, `customDescriptionField`)
+- ✅ Exemplos atualizados para refletir novas funcionalidades
+- ✅ Adicionado `.env.example` para referência
+
+### 🧪 Testes
+
+- ✅ Script de teste local (`test_local.js`) criado
+- ✅ Testes validam detecção de custom fields em múltiplas issues
+- ✅ Testes verificam extração de texto ADF em comentários
+- ✅ Validação de issues: WECLEVERAN-318, 319, 320
+
+### 📊 Resumo das Mudanças
+
+| Categoria | Quantidade | Status |
+|-----------|------------|--------|
+| Novas Funcionalidades | 3 | ✅ Implementadas |
+| Melhorias Técnicas | 2 | ✅ Concluídas |
+| Documentação | 4 | ✅ Atualizada |
+| Testes | 1 | ✅ Criado |
+
+---
+
 ## [1.1.1] - 2025-11-06
 
 ### 🔧 Correções de Compatibilidade
