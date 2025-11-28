@@ -109,7 +109,7 @@ class JiraMCPServer {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.2.1",
+        version: "1.3.0",
         description: "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud."
       },
       {
@@ -202,6 +202,30 @@ class JiraMCPServer {
             }
           },
           {
+            name: "jira.addComment",
+            title: "Adicionar Comentário",
+            description: "Adiciona um comentário em uma issue do Jira Cloud.",
+            inputSchema: {
+              type: "object",
+              required: ["issueKey", "body"],
+              properties: {
+                issueKey: { type: "string", description: "Chave da issue (ex.: ABC-123)" },
+                body: {
+                  type: "string",
+                  description: "Conteúdo do comentário (texto simples). Será convertido para formato ADF automaticamente."
+                },
+                visibility: {
+                  type: "object",
+                  description: "Visibilidade do comentário (opcional).",
+                  properties: {
+                    type: { type: "string", enum: ["role", "group"], description: "Tipo de visibilidade: 'role' ou 'group'" },
+                    value: { type: "string", description: "Nome do role ou grupo" }
+                  }
+                }
+              }
+            }
+          },
+          {
             name: "jira.getTransitions",
             title: "Obter Transições Disponíveis",
             description: "Obtém todas as transições de status disponíveis para uma issue, considerando as regras do workflow do board.",
@@ -257,6 +281,9 @@ class JiraMCPServer {
           case "jira.getComments":
           case "jira_getComments":  // Fallback para normalização do cliente
             return await this.getComments(args);
+          case "jira.addComment":
+          case "jira_addComment":  // Fallback para normalização do cliente
+            return await this.addComment(args);
           case "jira.getTransitions":
           case "jira_getTransitions":  // Fallback para normalização do cliente
             return await this.getTransitions(args);
@@ -567,6 +594,46 @@ class JiraMCPServer {
     };
   }
 
+  async addComment(args) {
+    const { issueKey, body, visibility } = args;
+    
+    if (!body || typeof body !== 'string' || body.trim().length === 0) {
+      throw new Error("O campo 'body' é obrigatório e deve conter texto.");
+    }
+    
+    // Converter texto simples para formato ADF (Atlassian Document Format)
+    const bodyADF = {
+      type: "doc",
+      version: 1,
+      content: [{
+        type: "paragraph",
+        content: [{ type: "text", text: body.trim() }]
+      }]
+    };
+    
+    const requestBody = {
+      body: bodyADF,
+      ...(visibility ? { visibility } : {})
+    };
+    
+    const data = await jiraFetch("POST", `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`, requestBody);
+    
+    // Extrair texto do comentário criado para resposta
+    let commentText = '';
+    if (data.body && typeof data.body === 'object' && data.body.content) {
+      commentText = this.extractTextFromADF(data.body);
+    } else if (typeof data.body === 'string') {
+      commentText = data.body;
+    }
+    
+    return {
+      content: [{
+        type: "text",
+        text: `✅ **Comentário adicionado com sucesso na issue ${issueKey}!**\n\n**ID do comentário:** ${data.id}\n**Autor:** ${data.author?.displayName || 'N/A'}\n**Criado em:** ${data.created || 'N/A'}\n**Conteúdo:**\n${commentText || body.trim()}`
+      }]
+    };
+  }
+
   async getTransitions(args) {
     const { issueKey, expand } = args;
     let path = `/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`;
@@ -644,7 +711,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira v1.2.1 iniciado');
+    console.error('🚀 Servidor MCP Jira v1.3.0 iniciado');
   }
 }
 

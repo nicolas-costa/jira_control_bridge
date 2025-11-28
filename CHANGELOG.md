@@ -1,5 +1,35 @@
 # Changelog - MCP Jira Server
 
+## [1.3.0] - 2025-01-XX
+
+### ✨ Novas Funcionalidades
+
+#### ✅ Adicionar Comentários em Issues
+- **Nova ferramenta:** `jira.addComment` para adicionar comentários diretamente em issues
+- **Funcionalidades:**
+  - Adiciona comentários em texto simples (conversão automática para ADF)
+  - Suporte a visibilidade restrita (roles e grupos)
+  - Retorna informações do comentário criado (ID, autor, data, conteúdo)
+- **Parâmetros:**
+  - `issueKey` (obrigatório): Chave da issue
+  - `body` (obrigatório): Conteúdo do comentário
+  - `visibility` (opcional): Visibilidade do comentário
+- **Impacto:** Agora é possível adicionar comentários sem precisar transicionar a issue, completando o ciclo CRUD de comentários
+
+### 📚 Documentação
+
+- ✅ README atualizado com documentação completa da nova ferramenta `jira.addComment`
+- ✅ Exemplos de uso adicionados na seção de exemplos
+- ✅ Versão atualizada para 1.3.0 em `server.js` e `package.json`
+
+### 🔧 Melhorias Técnicas
+
+- ✅ Implementação consistente com padrões existentes (formato ADF, tratamento de erros)
+- ✅ Validação de entrada para garantir que `body` não esteja vazio
+- ✅ Extração de texto ADF na resposta para facilitar leitura
+
+---
+
 ## [1.2.0] - 2025-11-19
 
 ### ✨ Novas Funcionalidades
