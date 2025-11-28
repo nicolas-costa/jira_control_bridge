@@ -8,6 +8,7 @@ Servidor MCP (Model Context Protocol) para integração com Jira Cloud, permitin
 - **Adicionar Worklogs**: Registrar tempo trabalhado em issues
 - **Buscar via JQL**: Pesquisar issues usando JQL (Java Query Language)
 - **Obter Comentários**: Buscar todos os comentários de uma issue
+- **Adicionar Comentários**: Adicionar comentários em issues
 - **Gerenciar Transições**: Visualizar transições disponíveis e mover issues entre status
 - **Workflow Inteligente**: Detectar e navegar por regras de transição do board
 
@@ -189,7 +190,42 @@ jira.getComments({
 - Datas de criação e atualização
 - Visibilidade
 
-### 5. **jira.getTransitions**
+### 5. **jira.addComment**
+Adiciona um comentário em uma issue do Jira Cloud.
+
+**Parâmetros:**
+- `issueKey` (obrigatório): Chave da issue
+- `body` (obrigatório): Conteúdo do comentário (texto simples)
+- `visibility` (opcional): Visibilidade do comentário
+
+**Exemplo:**
+```javascript
+// Comentário simples
+jira.addComment({
+  issueKey: "PROJ-123",
+  body: "Este é um comentário de exemplo"
+})
+
+// Comentário com visibilidade restrita
+jira.addComment({
+  issueKey: "PROJ-123",
+  body: "Comentário visível apenas para desenvolvedores",
+  visibility: {
+    type: "role",
+    value: "Developers"
+  }
+})
+```
+
+**Retorna:**
+- ID do comentário criado
+- Autor (nome, email, accountId)
+- Data de criação
+- Conteúdo do comentário
+
+**Nota:** O texto do comentário é automaticamente convertido para o formato ADF (Atlassian Document Format) usado pelo Jira Cloud.
+
+### 6. **jira.getTransitions**
 Obtém todas as transições de status disponíveis para uma issue, considerando as regras do workflow do board.
 
 **Parâmetros:**
@@ -213,7 +249,7 @@ jira.getTransitions({
 **⚠️ Importante sobre Workflows:**
 Esta ferramenta respeita as regras do board. Se você quiser mover uma issue de "Ready for Deployment" para "Done", mas o board não permite essa transição direta, o retorno mostrará apenas as transições disponíveis a partir do status atual. Você precisará fazer transições intermediárias.
 
-### 6. **jira.transitionIssue**
+### 7. **jira.transitionIssue**
 Move uma issue para outro status usando o ID da transição.
 
 **Parâmetros:**
@@ -300,6 +336,14 @@ jira.getComments({
   issueKey: "PROJ-123",
   maxResults: 20,
   orderBy: "-created"
+})
+```
+
+### Adicionar um comentário em uma issue:
+```javascript
+jira.addComment({
+  issueKey: "PROJ-123",
+  body: "Atualização: Implementei a funcionalidade solicitada. Aguardando revisão."
 })
 ```
 

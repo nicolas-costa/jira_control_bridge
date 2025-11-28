@@ -1,6 +1,6 @@
 {
   "name": "jira_control_bridge",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud",
   "type": "module",
   "repository": "https://github.com/nicolas-costa/jira_control_bridge.git",
