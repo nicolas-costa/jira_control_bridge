@@ -127,7 +127,7 @@ class JiraMCPServer {
       return {
         tools: [
           {
-            name: "jira.addWorklog",
+            name: "jira_addWorklog",
             title: "Adicionar Worklog",
             description: "Adiciona um worklog em uma issue do Jira Cloud.",
             inputSchema: {
@@ -156,7 +156,7 @@ class JiraMCPServer {
             }
           },
           {
-            name: "jira.searchJql",
+            name: "jira_searchJql",
             title: "Buscar Issues (JQL)",
             description: "Busca issues usando JQL e retorna campos principais.",
             inputSchema: {
@@ -170,7 +170,7 @@ class JiraMCPServer {
             }
           },
           {
-            name: "jira.getIssue",
+            name: "jira_getIssue",
             title: "Obter Issue",
             description: "Obtém dados completos de uma issue do Jira Cloud, incluindo descrição, status, comentários e outros campos.",
             inputSchema: {
@@ -187,7 +187,7 @@ class JiraMCPServer {
             }
           },
           {
-            name: "jira.getComments",
+            name: "jira_getComments",
             title: "Obter Comentários",
             description: "Obtém todos os comentários de uma issue do Jira Cloud. Extrai automaticamente o texto do formato ADF.",
             inputSchema: {
@@ -202,7 +202,7 @@ class JiraMCPServer {
             }
           },
           {
-            name: "jira.addComment",
+            name: "jira_addComment",
             title: "Adicionar Comentário",
             description: "Adiciona um comentário em uma issue do Jira Cloud.",
             inputSchema: {
@@ -226,7 +226,7 @@ class JiraMCPServer {
             }
           },
           {
-            name: "jira.getTransitions",
+            name: "jira_getTransitions",
             title: "Obter Transições Disponíveis",
             description: "Obtém todas as transições de status disponíveis para uma issue, considerando as regras do workflow do board.",
             inputSchema: {
@@ -239,15 +239,15 @@ class JiraMCPServer {
             }
           },
           {
-            name: "jira.transitionIssue",
+            name: "jira_transitionIssue",
             title: "Transicionar Issue",
-            description: "Move uma issue para outro status usando o ID da transição. Use jira.getTransitions para obter as transições disponíveis.",
+            description: "Move uma issue para outro status usando o ID da transição. Use jira_getTransitions para obter as transições disponíveis.",
             inputSchema: {
               type: "object",
               required: ["issueKey", "transitionId"],
               properties: {
                 issueKey: { type: "string", description: "Chave da issue (ex.: ABC-123)" },
-                transitionId: { type: "string", description: "ID da transição (obtido via jira.getTransitions)" },
+                transitionId: { type: "string", description: "ID da transição (obtido via jira_getTransitions)" },
                 fields: { 
                   type: "object", 
                   description: "Campos adicionais requeridos pela transição (ex.: resolution, assignee)"
@@ -269,26 +269,26 @@ class JiraMCPServer {
 
       try {
         switch (name) {
-          case "jira.addWorklog":
-          case "jira_addWorklog":  // Fallback para normalização do cliente
+          case "jira_addWorklog":
+          case "jira.addWorklog":  // Fallback legado para normalização do cliente
             return await this.addWorklog(args);
-          case "jira.searchJql":
-          case "jira_searchJql":  // Fallback para normalização do cliente
+          case "jira_searchJql":
+          case "jira.searchJql":  // Fallback legado para normalização do cliente
             return await this.searchJql(args);
-          case "jira.getIssue":
-          case "jira_getIssue":  // Fallback para normalização do cliente
+          case "jira_getIssue":
+          case "jira.getIssue":  // Fallback legado para normalização do cliente
             return await this.getIssue(args);
-          case "jira.getComments":
-          case "jira_getComments":  // Fallback para normalização do cliente
+          case "jira_getComments":
+          case "jira.getComments":  // Fallback legado para normalização do cliente
             return await this.getComments(args);
-          case "jira.addComment":
-          case "jira_addComment":  // Fallback para normalização do cliente
+          case "jira_addComment":
+          case "jira.addComment":  // Fallback legado para normalização do cliente
             return await this.addComment(args);
-          case "jira.getTransitions":
-          case "jira_getTransitions":  // Fallback para normalização do cliente
+          case "jira_getTransitions":
+          case "jira.getTransitions":  // Fallback legado para normalização do cliente
             return await this.getTransitions(args);
-          case "jira.transitionIssue":
-          case "jira_transitionIssue":  // Fallback para normalização do cliente
+          case "jira_transitionIssue":
+          case "jira.transitionIssue":  // Fallback legado para normalização do cliente
             return await this.transitionIssue(args);
           default:
             throw new Error(`Ferramenta desconhecida: ${name}`);
@@ -662,7 +662,7 @@ class JiraMCPServer {
     return {
       content: [{
         type: "text",
-        text: `🔄 **Transições disponíveis para ${issueKey}:**\n\n\`\`\`json\n${JSON.stringify({ transitions, expand: res.expand }, null, 2)}\n\`\`\`\n\n**Dica:** Use o 'id' da transição desejada com jira.transitionIssue para mover a issue. Se não houver transição direta para o status desejado, será necessário fazer transições intermediárias.`
+        text: `🔄 **Transições disponíveis para ${issueKey}:**\n\n\`\`\`json\n${JSON.stringify({ transitions, expand: res.expand }, null, 2)}\n\`\`\`\n\n**Dica:** Use o 'id' da transição desejada com jira_transitionIssue para mover a issue. Se não houver transição direta para o status desejado, será necessário fazer transições intermediárias.`
       }]
     };
   }
@@ -703,7 +703,7 @@ class JiraMCPServer {
     return {
       content: [{
         type: "text",
-        text: `✅ **Issue ${issueKey} transicionada com sucesso!**\n\nNovo status: **${updated.fields?.status?.name}**\n\n⚠️ **Importante:** Se você precisa mover para um status específico mas não há transição direta disponível, use jira.getTransitions para verificar as transições intermediárias necessárias.`
+        text: `✅ **Issue ${issueKey} transicionada com sucesso!**\n\nNovo status: **${updated.fields?.status?.name}**\n\n⚠️ **Importante:** Se você precisa mover para um status específico mas não há transição direta disponível, use jira_getTransitions para verificar as transições intermediárias necessárias.`
       }]
     };
   }
