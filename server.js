@@ -711,7 +711,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira v1.3.0 iniciado');
+    console.error('🚀 Servidor MCP Jira v1.4.1 iniciado');
   }
 }
 
