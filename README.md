@@ -84,7 +84,9 @@ Adicione ao seu `mcp.json` do Cursor:
 
 ## 🛠️ Ferramentas Disponíveis
 
-### 1. **jira.getIssue**
+> ⚠️ **Importante:** Os nomes das ferramentas seguem o padrão `jira_nomeDaFerramenta` (sem pontos) para cumprir o regex `^[a-zA-Z0-9_-]{1,64}$` exigido pelo MCP. Clients antigos que ainda chamam `jira.nomeDaFerramenta` continuam funcionando graças a fallbacks no servidor.
+
+### 1. **jira_getIssue**
 Obtém dados completos de uma issue específica, incluindo descrição, status, comentários e outros campos importantes.
 
 **Parâmetros:**
@@ -94,10 +96,10 @@ Obtém dados completos de uma issue específica, incluindo descrição, status, 
 **Exemplo:**
 ```javascript
 // Buscar issue com todos os campos importantes
-jira.getIssue({ issueKey: "WECLEVERAN-254" })
+jira_getIssue({ issueKey: "WECLEVERAN-254" })
 
 // Buscar com campos renderizados
-jira.getIssue({ 
+jira_getIssue({ 
   issueKey: "WECLEVERAN-254", 
   expand: ["renderedFields"] 
 })
@@ -112,7 +114,7 @@ jira.getIssue({
 - `descriptionSource`: Indica a origem da descrição (`'standard'` ou `'custom_field:customfield_XXXXX'`)
 - `customDescriptionField`: Informações do custom field usado como descrição (se aplicável)
 
-**Nota:** Para obter comentários, use `jira.getComments` para melhor performance e controle de paginação.
+**Nota:** Para obter comentários, use `jira_getComments` para melhor performance e controle de paginação.
 
 **🔍 Detecção Automática de Descrição Customizada:**
 Em alguns projetos do Jira, a descrição do card é armazenada em custom fields ao invés do campo `description` padrão. O servidor MCP detecta automaticamente quando `description` está vazio e:
@@ -129,7 +131,7 @@ Em alguns projetos do Jira, a descrição do card é armazenada em custom fields
 
 Esta solução é **genérica** e dev funcionar com qualquer custom field que tenha nome relacionado a descrição, não sendo necessário hardcode de IDs específicos.
 
-### 2. **jira.addWorklog**
+### 2. **jira_addWorklog**
 Adiciona um worklog (registro de tempo) em uma issue.
 
 **Parâmetros:**
@@ -141,7 +143,7 @@ Adiciona um worklog (registro de tempo) em uma issue.
 
 **Exemplo:**
 ```javascript
-jira.addWorklog({
+jira_addWorklog({
   issueKey: "WECLEVERAN-254",
   timeSpentSeconds: 28800, // 8 horas
   started: "2025-10-01T09:00:00-03:00",
@@ -149,7 +151,7 @@ jira.addWorklog({
 })
 ```
 
-### 3. **jira.searchJql**
+### 3. **jira_searchJql**
 Busca issues usando JQL (Java Query Language).
 
 **Parâmetros:**
@@ -159,14 +161,14 @@ Busca issues usando JQL (Java Query Language).
 
 **Exemplo:**
 ```javascript
-jira.searchJql({
+jira_searchJql({
   jql: "assignee = currentUser() AND status = 'In Progress'",
   maxResults: 10,
   fields: ["summary", "status", "worklog"]
 })
 ```
 
-### 4. **jira.getComments**
+### 4. **jira_getComments**
 Obtém todos os comentários de uma issue do Jira Cloud.
 
 **Parâmetros:**
@@ -176,7 +178,7 @@ Obtém todos os comentários de uma issue do Jira Cloud.
 
 **Exemplo:**
 ```javascript
-jira.getComments({
+jira_getComments({
   issueKey: "PROJ-123",
   maxResults: 10,
   orderBy: "-created" // Mais recentes primeiro
@@ -190,7 +192,7 @@ jira.getComments({
 - Datas de criação e atualização
 - Visibilidade
 
-### 5. **jira.addComment**
+### 5. **jira_addComment**
 Adiciona um comentário em uma issue do Jira Cloud.
 
 **Parâmetros:**
@@ -201,13 +203,13 @@ Adiciona um comentário em uma issue do Jira Cloud.
 **Exemplo:**
 ```javascript
 // Comentário simples
-jira.addComment({
+jira_addComment({
   issueKey: "PROJ-123",
   body: "Este é um comentário de exemplo"
 })
 
 // Comentário com visibilidade restrita
-jira.addComment({
+jira_addComment({
   issueKey: "PROJ-123",
   body: "Comentário visível apenas para desenvolvedores",
   visibility: {
@@ -225,7 +227,7 @@ jira.addComment({
 
 **Nota:** O texto do comentário é automaticamente convertido para o formato ADF (Atlassian Document Format) usado pelo Jira Cloud.
 
-### 6. **jira.getTransitions**
+### 6. **jira_getTransitions**
 Obtém todas as transições de status disponíveis para uma issue, considerando as regras do workflow do board.
 
 **Parâmetros:**
@@ -234,7 +236,7 @@ Obtém todas as transições de status disponíveis para uma issue, considerando
 
 **Exemplo:**
 ```javascript
-jira.getTransitions({
+jira_getTransitions({
   issueKey: "PROJ-123",
   expand: "transitions.fields"
 })
@@ -249,29 +251,29 @@ jira.getTransitions({
 **⚠️ Importante sobre Workflows:**
 Esta ferramenta respeita as regras do board. Se você quiser mover uma issue de "Ready for Deployment" para "Done", mas o board não permite essa transição direta, o retorno mostrará apenas as transições disponíveis a partir do status atual. Você precisará fazer transições intermediárias.
 
-### 7. **jira.transitionIssue**
+### 7. **jira_transitionIssue**
 Move uma issue para outro status usando o ID da transição.
 
 **Parâmetros:**
 - `issueKey` (obrigatório): Chave da issue
-- `transitionId` (obrigatório): ID da transição (obtido via jira.getTransitions)
+- `transitionId` (obrigatório): ID da transição (obtido via jira_getTransitions)
 - `fields` (opcional): Campos adicionais requeridos pela transição
 - `comment` (opcional): Comentário ao transicionar
 
 **Exemplo:**
 ```javascript
 // 1. Primeiro, obter transições disponíveis
-jira.getTransitions({ issueKey: "PROJ-123" })
+jira_getTransitions({ issueKey: "PROJ-123" })
 
 // 2. Depois, transicionar usando o ID
-jira.transitionIssue({
+jira_transitionIssue({
   issueKey: "PROJ-123",
   transitionId: "31", // ID obtido do passo anterior
   comment: "Movendo para próximo status"
 })
 
 // 3. Com campos adicionais (se necessário)
-jira.transitionIssue({
+jira_transitionIssue({
   issueKey: "PROJ-123",
   transitionId: "51",
   fields: {
@@ -283,7 +285,7 @@ jira.transitionIssue({
 
 **⚠️ Workflow com Múltiplas Etapas:**
 Se o board tiver regras que impeçam transição direta (ex: "Ready for Deployment" → "Done"), você precisará:
-1. Usar `jira.getTransitions` para ver as transições disponíveis
+1. Usar `jira_getTransitions` para ver as transições disponíveis
 2. Fazer transições intermediárias uma por uma
 3. Verificar o novo status após cada transição
 
@@ -292,20 +294,20 @@ Se o board tiver regras que impeçam transição direta (ex: "Ready for Deployme
 // Cenário: Mover de "To Do" → "Done", mas board requer passar por "In Progress"
 
 // Passo 1: To Do → In Progress
-jira.transitionIssue({ issueKey: "PROJ-123", transitionId: "21" })
+jira_transitionIssue({ issueKey: "PROJ-123", transitionId: "21" })
 
 // Passo 2: Verificar transições disponíveis no novo status
-jira.getTransitions({ issueKey: "PROJ-123" })
+jira_getTransitions({ issueKey: "PROJ-123" })
 
 // Passo 3: In Progress → Done
-jira.transitionIssue({ issueKey: "PROJ-123", transitionId: "31" })
+jira_transitionIssue({ issueKey: "PROJ-123", transitionId: "31" })
 ```
 
 ## 📝 Exemplos de Uso
 
 ### Buscar minhas issues em progresso:
 ```javascript
-jira.searchJql({
+jira_searchJql({
   jql: "assignee = currentUser() AND status = 'In Progress'",
   maxResults: 5
 })
@@ -313,7 +315,7 @@ jira.searchJql({
 
 ### Registrar 8 horas de trabalho:
 ```javascript
-jira.addWorklog({
+jira_addWorklog({
   issueKey: "PROJ-123",
   timeSpentSeconds: 28800, // 8 horas
   started: "2025-10-01T09:00:00-03:00",
@@ -323,16 +325,16 @@ jira.addWorklog({
 
 ### Obter detalhes completos de uma issue:
 ```javascript
-jira.getIssue({
+jira_getIssue({
   issueKey: "PROJ-123"
 })
 // Retorna: summary, description, status, assignee, priority, dates, etc.
-// Para comentários, use jira.getComments separadamente
+// Para comentários, use jira_getComments separadamente
 ```
 
 ### Obter apenas comentários de uma issue:
 ```javascript
-jira.getComments({
+jira_getComments({
   issueKey: "PROJ-123",
   maxResults: 20,
   orderBy: "-created"
@@ -341,7 +343,7 @@ jira.getComments({
 
 ### Adicionar um comentário em uma issue:
 ```javascript
-jira.addComment({
+jira_addComment({
   issueKey: "PROJ-123",
   body: "Atualização: Implementei a funcionalidade solicitada. Aguardando revisão."
 })
@@ -350,11 +352,11 @@ jira.addComment({
 ### Mover uma issue para outro status:
 ```javascript
 // 1. Verificar transições disponíveis
-jira.getTransitions({ issueKey: "PROJ-123" })
+jira_getTransitions({ issueKey: "PROJ-123" })
 // Output: Lista de transições com IDs e status de destino
 
 // 2. Executar transição
-jira.transitionIssue({
+jira_transitionIssue({
   issueKey: "PROJ-123",
   transitionId: "31", // ID da transição desejada
   comment: "Movendo para Done"
@@ -366,18 +368,18 @@ jira.transitionIssue({
 // Cenário: Board não permite "To Do" → "Done" diretamente
 
 // Passo 1: Verificar transições de "To Do"
-jira.getTransitions({ issueKey: "PROJ-123" })
+jira_getTransitions({ issueKey: "PROJ-123" })
 // Output: Apenas "To Do" → "In Progress" disponível (ID: 21)
 
 // Passo 2: Mover para "In Progress"
-jira.transitionIssue({ issueKey: "PROJ-123", transitionId: "21" })
+jira_transitionIssue({ issueKey: "PROJ-123", transitionId: "21" })
 
 // Passo 3: Verificar transições de "In Progress"
-jira.getTransitions({ issueKey: "PROJ-123" })
+jira_getTransitions({ issueKey: "PROJ-123" })
 // Output: "In Progress" → "Done" disponível (ID: 31)
 
 // Passo 4: Mover para "Done"
-jira.transitionIssue({ issueKey: "PROJ-123", transitionId: "31" })
+jira_transitionIssue({ issueKey: "PROJ-123", transitionId: "31" })
 ```
 
 ## 🔍 JQL (Java Query Language)
@@ -412,7 +414,7 @@ O JQL permite fazer buscas avançadas no Jira:
 
 ### Erro 410 "API has been removed":
 - O endpoint de busca JQL pode estar com problemas
-- Use `jira.getIssue` para buscar issues específicas
+- Use `jira_getIssue` para buscar issues específicas
 
 ### Timezone Issues:
 - Configure `JIRA_USER_TZ` corretamente
@@ -421,7 +423,7 @@ O JQL permite fazer buscas avançadas no Jira:
 ### Transições não disponíveis:
 - Se uma transição esperada não aparece, verifique as regras do workflow no Jira
 - Alguns boards têm regras que impedem transições diretas entre certos status
-- Use `jira.getTransitions` para ver exatamente quais transições estão disponíveis
+- Use `jira_getTransitions` para ver exatamente quais transições estão disponíveis
 - Pode ser necessário fazer transições intermediárias
 
 ### Erro ao transicionar:

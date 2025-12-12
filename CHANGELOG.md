@@ -22,6 +22,11 @@
 - ✅ Exemplos de uso adicionados na seção de exemplos
 - ✅ Versão atualizada para 1.3.0 em `server.js` e `package.json`
 
+### 🛡️ Compatibilidade MCP
+
+- ✅ Renomeadas todas as ferramentas de `jira.*` para `jira_*`, obedecendo ao regex `^[a-zA-Z0-9_-]{1,64}$` exigido por clientes como o antigravity
+- ✅ Mantidos fallbacks no handler (`jira.*`) para garantir compatibilidade retroativa com automações já existentes
+
 ### 🔧 Melhorias Técnicas
 
 - ✅ Implementação consistente com padrões existentes (formato ADF, tratamento de erros)
