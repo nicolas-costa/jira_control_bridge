@@ -1,5 +1,12 @@
 # Changelog - MCP Jira Server
 
+## [1.3.1] - 2025-12-12
+
+### 🐛 Correções
+
+- ✅ **Migração obrigatória do JQL search:** `jira_searchJql` agora usa `POST /rest/api/3/search/jql` (a Atlassian removeu `GET /rest/api/3/search`, retornando **410 Gone**).
+- ✅ Evita limites de URL para JQLs grandes (POST com body ao invés de querystring).
+
 ## [1.3.0] - 2025-01-XX
 
 ### ✨ Novas Funcionalidades
