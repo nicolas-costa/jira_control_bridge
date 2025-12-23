@@ -1,5 +1,18 @@
 # Changelog - MCP Jira Server
 
+## [1.5.0] - 2025-12-22
+
+### ✨ Novas Funcionalidades
+
+#### ✅ Retorno de link do worklog
+- **Adicionado:** Campo `self` (link) na resposta de `jira_addWorklog`
+- **Funcionalidade:** A API do Jira retorna o campo `self` com a URL completa do worklog criado
+- **Melhorias na resposta:**
+  - Formatação melhorada com estrutura mais clara
+  - Conversão automática de tempo para horas (ex: 28800s = 8.00h)
+  - Link direto para o worklog no Jira
+- **Impacto:** Facilita acesso direto ao worklog criado sem precisar construir a URL manualmente
+
 ## [1.4.2] - 2025-12-12
 
 ### 🐛 Correções

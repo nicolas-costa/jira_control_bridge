@@ -109,7 +109,7 @@ class JiraMCPServer {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.4.2",
+        version: "1.5.0",
         description: "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud."
       },
       {
@@ -320,10 +320,21 @@ class JiraMCPServer {
 
     const data = await jiraFetch("POST", `/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog`, body);
 
+    const worklogId = data?.id || "?";
+    const worklogLink = data?.self || null;
+    
+    let responseText = `✅ **Worklog criado em ${issueKey}**\n\n`;
+    responseText += `**ID:** ${worklogId}\n`;
+    responseText += `**Tempo:** ${timeSpentSeconds}s (${(timeSpentSeconds / 3600).toFixed(2)}h)\n`;
+    responseText += `**Início:** ${startedStr}\n`;
+    if (worklogLink) {
+      responseText += `**Link:** ${worklogLink}\n`;
+    }
+
     return {
       content: [{
         type: "text",
-        text: `Worklog criado em ${issueKey} com ${timeSpentSeconds}s (started=${startedStr}). id=${data?.id || "?"}`
+        text: responseText
       }]
     };
   }
@@ -715,7 +726,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira v1.4.2 iniciado');
+    console.error('🚀 Servidor MCP Jira v1.5.0 iniciado');
   }
 }
 
