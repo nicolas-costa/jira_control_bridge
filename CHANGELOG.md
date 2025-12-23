@@ -1,5 +1,27 @@
 # Changelog - MCP Jira Server
 
+## [1.5.1] - 2025-01-XX
+
+### 🐛 Correções Críticas
+
+#### ✅ Corrigido endpoint incorreto em `jira_searchJql`
+- **Problema:** O código usava o endpoint `/rest/api/3/search/jql` que não existe na API do Jira Cloud, causando erro **400 Bad Request** em todas as buscas JQL.
+- **Causa:** Comentário incorreto no código indicava que `/rest/api/3/search` havia sido removido (410 Gone), mas isso estava errado.
+- **Solução:** Corrigido para usar o endpoint oficial `/rest/api/3/search` que é o endpoint correto e suportado pela API v3 do Jira Cloud.
+- **Impacto:** Todas as buscas JQL agora funcionam corretamente. O payload estava correto, apenas o endpoint estava errado.
+
+```diff
+- const res = await jiraFetch("POST", "/rest/api/3/search/jql", {
++ const res = await jiraFetch("POST", "/rest/api/3/search", {
+    jql,
+    maxResults,
+    startAt: 0,
+    fields: fieldsArray
+  });
+```
+
+- **Removido:** Comentário enganoso sobre remoção da API `/rest/api/3/search`
+
 ## [1.5.0] - 2025-12-22
 
 ### ✨ Novas Funcionalidades
@@ -17,7 +39,7 @@
 
 ### 🐛 Correções
 
-- ✅ **Migração obrigatória do JQL search:** `jira_searchJql` agora usa `POST /rest/api/3/search/jql` (a Atlassian removeu `GET /rest/api/3/search`, retornando **410 Gone**).
+- ⚠️ **NOTA:** Esta versão continha um erro - o endpoint `/rest/api/3/search/jql` não existe. Foi corrigido na versão 1.5.1 para usar `/rest/api/3/search`.
 - ✅ Evita limites de URL para JQLs grandes (POST com body ao invés de querystring).
 
 ## [1.3.0] - 2025-01-XX

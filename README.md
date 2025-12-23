@@ -412,9 +412,11 @@ O JQL permite fazer buscas avançadas no Jira:
 - Verifique se o `JIRA_EMAIL` e `JIRA_API_TOKEN` estão corretos
 - Confirme se o token tem as permissões necessárias
 
-### Erro 410 "API has been removed":
-- O endpoint de busca JQL pode estar com problemas
-- Use `jira_getIssue` para buscar issues específicas
+### Erro 400 "Bad Request" em buscas JQL:
+- Verifique se a query JQL está correta
+- Certifique-se de que o projeto existe e você tem permissão para acessá-lo
+- Valide a sintaxe JQL na interface do Jira antes de usar
+- O endpoint correto é `/rest/api/3/search` (POST)
 
 ### Timezone Issues:
 - Configure `JIRA_USER_TZ` corretamente

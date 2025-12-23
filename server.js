@@ -109,7 +109,7 @@ class JiraMCPServer {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.5.0",
+        version: "1.5.1",
         description: "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud."
       },
       {
@@ -344,9 +344,8 @@ class JiraMCPServer {
     const defaultFields = ["summary", "status", "assignee", "timetracking"];
     const fieldsArray = Array.isArray(fields) && fields.length ? fields : defaultFields;
 
-    // Jira Cloud removeu /rest/api/3/search (410 Gone). A rota suportada agora é /rest/api/3/search/jql
     // Usamos POST para evitar limites de URL e manter compatibilidade com JQLs longas.
-    const res = await jiraFetch("POST", "/rest/api/3/search/jql", {
+    const res = await jiraFetch("POST", "/rest/api/3/search", {
       jql,
       maxResults,
       startAt: 0,
@@ -726,7 +725,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira v1.5.0 iniciado');
+    console.error('🚀 Servidor MCP Jira v1.5.1 iniciado');
   }
 }
 
