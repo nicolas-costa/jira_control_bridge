@@ -344,11 +344,12 @@ class JiraMCPServer {
     const defaultFields = ["summary", "status", "assignee", "timetracking"];
     const fieldsArray = Array.isArray(fields) && fields.length ? fields : defaultFields;
 
-    // Usamos POST para evitar limites de URL e manter compatibilidade com JQLs longas.
-    const res = await jiraFetch("POST", "/rest/api/3/search", {
+    // Jira Cloud removeu /rest/api/3/search (410 Gone). A rota suportada agora é /rest/api/3/search/jql
+    // O novo endpoint /rest/api/3/search/jql usa paginação baseada em tokens (nextPageToken) ao invés de startAt
+    // Fields deve ser um array no body do POST
+    const res = await jiraFetch("POST", "/rest/api/3/search/jql", {
       jql,
       maxResults,
-      startAt: 0,
       fields: fieldsArray
     });
     

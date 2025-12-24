@@ -412,11 +412,16 @@ O JQL permite fazer buscas avançadas no Jira:
 - Verifique se o `JIRA_EMAIL` e `JIRA_API_TOKEN` estão corretos
 - Confirme se o token tem as permissões necessárias
 
+### Erro 410 "Gone" em buscas JQL:
+- O endpoint `/rest/api/3/search` foi removido pela Atlassian em maio de 2025
+- O servidor MCP já está migrado para `/rest/api/3/search/jql` (versão 1.5.1+)
+- Se ainda receber erro 410, atualize para a versão mais recente
+
 ### Erro 400 "Bad Request" em buscas JQL:
 - Verifique se a query JQL está correta
 - Certifique-se de que o projeto existe e você tem permissão para acessá-lo
 - Valide a sintaxe JQL na interface do Jira antes de usar
-- O endpoint correto é `/rest/api/3/search` (POST)
+- O endpoint correto é `/rest/api/3/search/jql` (POST) - novo endpoint após migração da Atlassian
 
 ### Timezone Issues:
 - Configure `JIRA_USER_TZ` corretamente
@@ -438,6 +443,71 @@ O JQL permite fazer buscas avançadas no Jira:
 - A API v3 do Jira retorna descrição em formato ADF (Atlassian Document Format)
 - Use `expand: ["renderedFields"]` para obter versão renderizada em HTML
 - Comentários também usam formato ADF na estrutura `body`
+
+## 🧪 Testes
+
+O projeto inclui testes automatizados usando Node.js Test Runner (nativo, sem dependências extras).
+
+### Executar Testes
+
+```bash
+# Executar todos os testes
+npm test
+
+# Apenas testes unitários (funções auxiliares)
+npm run test:unit
+
+# Apenas testes de integração (requer credenciais)
+npm run test:integration
+
+# Apenas testes de busca JQL
+npm run test:jql
+
+# Testes manuais (script interativo)
+npm run test:local
+```
+
+### Configuração para Testes
+
+Os testes de integração requerem variáveis de ambiente configuradas. Copie `.test.env.example` para `.env` e preencha:
+
+```bash
+cp .test.env.example .env
+# Edite .env com suas credenciais
+```
+
+**Variáveis necessárias:**
+- `JIRA_BASE_URL`: URL base do Jira
+- `JIRA_EMAIL`: Email da conta
+- `JIRA_API_TOKEN`: Token de API
+- `TEST_ISSUE_KEY` (opcional): Issue para testes de integração
+
+### Estrutura de Testes
+
+- **`test/helpers.test.js`**: Testes unitários para funções auxiliares
+  - `basicAuthHeader()`: Geração de header de autenticação
+  - `toJiraStartedISO()`: Conversão de datas para formato Jira
+  - `extractTextFromADF()`: Extração de texto de formato ADF
+
+- **`test/search-jql.test.js`**: Testes específicos para busca JQL
+  - Validação do endpoint `/rest/api/3/search/jql`
+  - Formato de payload (fields como array)
+  - Paginação (nextPageToken vs startAt)
+  - Validação de JQL inválida
+
+- **`test/integration.test.js`**: Testes de integração completos
+  - `getIssue`: Obter dados de issue
+  - `getComments`: Obter comentários
+  - `getTransitions`: Obter transições disponíveis
+  - `addComment`: Adicionar comentário
+  - `addWorklog`: Adicionar worklog
+
+### Notas sobre Testes
+
+- **Testes unitários** não requerem credenciais e podem ser executados sempre
+- **Testes de integração** requerem credenciais válidas e fazem chamadas reais à API
+- Testes são automaticamente pulados (`skip`) se credenciais não estiverem configuradas
+- Testes de integração podem criar dados reais (comentários, worklogs) - use com cuidado
 
 ## 📚 Recursos Adicionais
 

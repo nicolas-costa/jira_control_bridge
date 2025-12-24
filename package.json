@@ -10,8 +10,12 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node -e \"console.log('Teste básico OK')\"",
-    "test:local": "node test_local.js"
+    "test": "node --test test/**/*.test.js",
+    "test:unit": "node --test test/helpers.test.js",
+    "test:integration": "node --test test/integration.test.js test/search-jql.test.js",
+    "test:jql": "node --test test/search-jql.test.js",
+    "test:local": "node test_local.js",
+    "test:all": "npm run test:unit && npm run test:integration"
   },
   "keywords": [],
   "author": "",

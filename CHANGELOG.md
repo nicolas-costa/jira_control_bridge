@@ -1,26 +1,48 @@
 # Changelog - MCP Jira Server
 
-## [1.5.1] - 2025-01-XX
+## [1.5.1] - 2025-12-23
 
 ### 🐛 Correções Críticas
 
-#### ✅ Corrigido endpoint incorreto em `jira_searchJql`
-- **Problema:** O código usava o endpoint `/rest/api/3/search/jql` que não existe na API do Jira Cloud, causando erro **400 Bad Request** em todas as buscas JQL.
-- **Causa:** Comentário incorreto no código indicava que `/rest/api/3/search` havia sido removido (410 Gone), mas isso estava errado.
-- **Solução:** Corrigido para usar o endpoint oficial `/rest/api/3/search` que é o endpoint correto e suportado pela API v3 do Jira Cloud.
-- **Impacto:** Todas as buscas JQL agora funcionam corretamente. O payload estava correto, apenas o endpoint estava errado.
+#### ✅ Corrigido endpoint e formato de paginação em `jira_searchJql`
+- **Problema:** O código usava o endpoint `/rest/api/3/search` que foi removido pela Atlassian (410 Gone), causando erro em todas as buscas JQL.
+- **Causa:** A Atlassian descontinuou `/rest/api/3/search` em maio de 2025 e migrou para `/rest/api/3/search/jql` com mudanças no formato de paginação.
+- **Solução:** 
+  - Atualizado para usar o endpoint `/rest/api/3/search/jql` (endpoint oficial de migração)
+  - Removido `startAt: 0` do payload (o novo endpoint usa paginação baseada em tokens `nextPageToken`)
+  - Mantido `fields` como array (formato correto para o novo endpoint)
+- **Impacto:** Todas as buscas JQL agora funcionam corretamente com o novo endpoint da Atlassian.
 
 ```diff
-- const res = await jiraFetch("POST", "/rest/api/3/search/jql", {
-+ const res = await jiraFetch("POST", "/rest/api/3/search", {
+- const res = await jiraFetch("POST", "/rest/api/3/search", {
++ const res = await jiraFetch("POST", "/rest/api/3/search/jql", {
     jql,
     maxResults,
-    startAt: 0,
+-   startAt: 0,  // Removido: novo endpoint usa nextPageToken
     fields: fieldsArray
   });
 ```
 
-- **Removido:** Comentário enganoso sobre remoção da API `/rest/api/3/search`
+- **Referência:** [Atlassian Migration Guide](https://developer.atlassian.com/changelog/#CHANGE-2046)
+
+### ✨ Novas Funcionalidades
+
+#### ✅ Testes Automatizados
+- **Adicionado:** Suite completa de testes automatizados usando Node.js Test Runner (nativo, sem dependências extras)
+- **Estrutura de testes:**
+  - `test/helpers.test.js`: 12 testes unitários para funções auxiliares (basicAuthHeader, toJiraStartedISO, extractTextFromADF)
+  - `test/search-jql.test.js`: 6 testes de integração específicos para busca JQL
+  - `test/integration.test.js`: 5 testes de integração para funcionalidades principais
+- **Scripts NPM:**
+  - `npm test`: Executa todos os testes
+  - `npm run test:unit`: Apenas testes unitários (não requerem credenciais)
+  - `npm run test:integration`: Testes de integração (requerem credenciais)
+  - `npm run test:jql`: Apenas testes de busca JQL
+- **Características:**
+  - Testes de integração pulam automaticamente se credenciais não estiverem configuradas
+  - Suporte a `.env.test` para configuração de credenciais de teste
+  - Documentação completa em `test/README.md`
+- **Impacto:** Facilita validação contínua e garante que mudanças não quebrem funcionalidades existentes
 
 ## [1.5.0] - 2025-12-22
 
@@ -39,8 +61,9 @@
 
 ### 🐛 Correções
 
-- ⚠️ **NOTA:** Esta versão continha um erro - o endpoint `/rest/api/3/search/jql` não existe. Foi corrigido na versão 1.5.1 para usar `/rest/api/3/search`.
+- ✅ **Migração para novo endpoint:** `jira_searchJql` usa `POST /rest/api/3/search/jql` (endpoint oficial após remoção de `/rest/api/3/search` em maio de 2025).
 - ✅ Evita limites de URL para JQLs grandes (POST com body ao invés de querystring).
+- ⚠️ **NOTA:** Versão 1.5.1 corrigiu formato de paginação (removido `startAt`, novo endpoint usa `nextPageToken`).
 
 ## [1.3.0] - 2025-01-XX
 
