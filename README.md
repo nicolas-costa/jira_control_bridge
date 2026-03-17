@@ -462,9 +462,6 @@ npm run test:integration
 
 # Apenas testes de busca JQL
 npm run test:jql
-
-# Testes manuais (script interativo)
-npm run test:local
 ```
 
 ### Configuração para Testes

@@ -140,6 +140,22 @@ test('addComment - deve adicionar comentário', { skip: !hasCredentials }, async
   assert(result.created, 'Comentário criado deve ter created');
 });
 
+test('getWorklogs - deve retornar worklogs com link', { skip: !hasCredentials }, async () => {
+  const result = await jiraFetch("GET", `/rest/api/3/issue/${TEST_ISSUE_KEY}/worklog?maxResults=10`);
+  
+  assert(result, 'Resposta não deve ser nula');
+  assert(typeof result.total === 'number', 'Deve ter campo total');
+  assert(Array.isArray(result.worklogs), 'Deve ter array de worklogs');
+  
+  if (result.worklogs.length > 0) {
+    const worklog = result.worklogs[0];
+    assert(worklog.id, 'Worklog deve ter id');
+    assert(worklog.self, 'Worklog deve ter self (link)');
+    assert(worklog.timeSpentSeconds !== undefined, 'Worklog deve ter timeSpentSeconds');
+    assert(worklog.author, 'Worklog deve ter author');
+  }
+});
+
 test('addWorklog - deve adicionar worklog', { skip: !hasCredentials }, async () => {
   // Criar worklog de 1 minuto para teste
   const started = new Date().toISOString().replace(/\.\d{3}Z$/, '+0000');

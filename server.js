@@ -109,7 +109,7 @@ class JiraMCPServer {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.5.1",
+        version: "1.6.0",
         description: "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud."
       },
       {
@@ -126,6 +126,20 @@ class JiraMCPServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: [
+          {
+            name: "jira_getWorklogs",
+            title: "Obter Worklogs",
+            description: "Lista todos os worklogs de uma issue do Jira Cloud. Retorna ID, autor, tempo, comentário e link (self) de cada worklog.",
+            inputSchema: {
+              type: "object",
+              required: ["issueKey"],
+              properties: {
+                issueKey: { type: "string", description: "Chave da issue (ex.: ABC-123)." },
+                startAt: { type: "integer", description: "Índice do primeiro resultado (paginação, padrão: 0)." },
+                maxResults: { type: "integer", description: "Número máximo de worklogs (padrão: 50)." }
+              }
+            }
+          },
           {
             name: "jira_addWorklog",
             title: "Adicionar Worklog",
@@ -269,6 +283,9 @@ class JiraMCPServer {
 
       try {
         switch (name) {
+          case "jira_getWorklogs":
+          case "jira.getWorklogs":  // Fallback legado para normalização do cliente
+            return await this.getWorklogs(args);
           case "jira_addWorklog":
           case "jira.addWorklog":  // Fallback legado para normalização do cliente
             return await this.addWorklog(args);
@@ -305,6 +322,57 @@ class JiraMCPServer {
     });
   }
 
+  async getWorklogs(args) {
+    const { issueKey, startAt = 0, maxResults = 50 } = args;
+    const params = new URLSearchParams({
+      startAt: startAt.toString(),
+      maxResults: maxResults.toString()
+    });
+
+    const res = await jiraFetch("GET", `/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog?${params.toString()}`);
+
+    const base = process.env.JIRA_BASE_URL?.replace(/\/$/, "") || "";
+    const issueBrowseUrl = base ? `${base}/browse/${issueKey}` : null;
+
+    const worklogs = (res.worklogs || []).map((w) => {
+      let commentText = "";
+      if (w.comment && typeof w.comment === "object" && w.comment.content) {
+        commentText = this.extractTextFromADF(w.comment);
+      } else if (typeof w.comment === "string") {
+        commentText = w.comment;
+      }
+      const browseUrl = base && w.id ? `${base}/browse/${issueKey}?focusedWorklogId=${w.id}` : null;
+      return {
+        id: w.id,
+        link: w.self,
+        browseUrl,
+        author: w.author?.displayName || w.author?.accountId,
+        timeSpent: w.timeSpent,
+        timeSpentSeconds: w.timeSpentSeconds,
+        started: w.started,
+        created: w.created,
+        updated: w.updated,
+        comment: commentText || null
+      };
+    });
+
+    const payload = {
+      total: res.total,
+      startAt: res.startAt ?? 0,
+      maxResults: res.maxResults ?? maxResults,
+      issueKey,
+      issueBrowseUrl,
+      worklogs
+    };
+
+    return {
+      content: [{
+        type: "text",
+        text: `⏱️ **Worklogs da issue ${issueKey}** (${res.total} total, mostrando ${worklogs.length}):\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n\n**Link da issue:** ${issueBrowseUrl || "N/A"}`
+      }]
+    };
+  }
+
   async addWorklog(args) {
     const { issueKey, timeSpentSeconds, comment, started, visibility } = args;
     const startedStr = toJiraStartedISO(
@@ -322,13 +390,18 @@ class JiraMCPServer {
 
     const worklogId = data?.id || "?";
     const worklogLink = data?.self || null;
-    
+    const base = process.env.JIRA_BASE_URL?.replace(/\/$/, "") || "";
+    const browseUrl = base && worklogId !== "?" ? `${base}/browse/${issueKey}?focusedWorklogId=${worklogId}` : null;
+
     let responseText = `✅ **Worklog criado em ${issueKey}**\n\n`;
     responseText += `**ID:** ${worklogId}\n`;
     responseText += `**Tempo:** ${timeSpentSeconds}s (${(timeSpentSeconds / 3600).toFixed(2)}h)\n`;
     responseText += `**Início:** ${startedStr}\n`;
+    if (browseUrl) {
+      responseText += `**Link (interface):** ${browseUrl}\n`;
+    }
     if (worklogLink) {
-      responseText += `**Link:** ${worklogLink}\n`;
+      responseText += `**Link (API):** ${worklogLink}\n`;
     }
 
     return {
@@ -726,7 +799,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira v1.5.1 iniciado');
+    console.error('🚀 Servidor MCP Jira v1.6.0 iniciado');
   }
 }
 

@@ -1,20 +1,20 @@
 {
   "name": "jira_control_bridge",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud",
   "type": "module",
   "repository": "https://github.com/nicolas-costa/jira_control_bridge.git",
-  "main": "index.js",
+  "main": "server.js",
   "bin": {
     "jira-mcp-server": "./server.js"
   },
   "scripts": {
+    "build": "node --check server.js && npm run test:unit",
     "start": "node server.js",
     "test": "node --test test/**/*.test.js",
     "test:unit": "node --test test/helpers.test.js",
     "test:integration": "node --test test/integration.test.js test/search-jql.test.js",
     "test:jql": "node --test test/search-jql.test.js",
-    "test:local": "node test_local.js",
     "test:all": "npm run test:unit && npm run test:integration"
   },
   "keywords": [],

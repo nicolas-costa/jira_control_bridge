@@ -1,5 +1,40 @@
 # Changelog - MCP Jira Server
 
+## [1.6.0] - 2025-03-17
+
+### ✨ Novas Funcionalidades
+
+#### ✅ Consultar Worklogs (`jira_getWorklogs`)
+- **Nova ferramenta:** Lista todos os worklogs de uma issue do Jira Cloud
+- **Funcionalidades:**
+  - Retorna ID, autor, tempo (timeSpent, timeSpentSeconds), data de início, criado/atualizado
+  - **Link de cada worklog** (`link` = campo `self` da API) — URL REST para acesso direto ao worklog
+  - Link da issue no Jira (`issueBrowseUrl`) para visualização no contexto
+  - Extração automática de texto do comentário (formato ADF)
+  - Paginação via `startAt` e `maxResults`
+- **Parâmetros:**
+  - `issueKey` (obrigatório): Chave da issue
+  - `startAt` (opcional): Índice inicial para paginação (padrão: 0)
+  - `maxResults` (opcional): Máximo de worklogs retornados (padrão: 50)
+- **Impacto:** Permite consultar worklogs existentes e obter o link de cada um para referência ou integração
+
+#### ✅ Link de browse com `focusedWorklogId`
+- **Descoberta:** Jira Cloud aceita `?focusedWorklogId={id}` na URL de browse da issue para focar no worklog na interface
+- **Formato:** `{JIRA_BASE_URL}/browse/{issueKey}?focusedWorklogId={worklogId}`
+- **Implementado:**
+  - `jira_getWorklogs`: cada worklog inclui `browseUrl` (link que abre a interface focada no worklog)
+  - `jira_addWorklog`: resposta inclui `Link (interface)` com o mesmo formato
+- **Independência:** Usa apenas `JIRA_BASE_URL` (env), `issueKey` e `worklogId` do payload — funciona em qualquer projeto/instância
+
+## [1.5.2] - 2025-12-23
+
+### 🧹 Limpeza e Manutenção
+
+#### ✅ Removido script `test_local.js`
+- **Motivo:** Duplicação de funcionalidade - testes automatizados já cobrem todas as funcionalidades
+- **Impacto:** Redução de código duplicado e simplificação da estrutura de testes
+- **Alternativa:** Use `npm run test:integration` para testes de integração ou `npm test` para todos os testes
+
 ## [1.5.1] - 2025-12-23
 
 ### 🐛 Correções Críticas
