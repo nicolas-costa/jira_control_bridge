@@ -1,6 +1,6 @@
 # MCP Jira Server
 
-Servidor MCP (Model Context Protocol) para integração com Jira Cloud, permitindo buscar issues, adicionar worklogs e obter informações detalhadas de tarefas.
+Servidor MCP (Model Context Protocol) para integração com Jira Cloud, permitindo buscar issues, adicionar worklogs, baixar anexos e obter informações detalhadas de tarefas.
 
 ## 🚀 Funcionalidades
 
@@ -9,6 +9,7 @@ Servidor MCP (Model Context Protocol) para integração com Jira Cloud, permitin
 - **Buscar via JQL**: Pesquisar issues usando JQL (Java Query Language)
 - **Obter Comentários**: Buscar todos os comentários de uma issue
 - **Adicionar Comentários**: Adicionar comentários em issues
+- **Listar e Baixar Anexos**: Consultar anexos de um card e salvar arquivos localmente
 - **Gerenciar Transições**: Visualizar transições disponíveis e mover issues entre status
 - **Workflow Inteligente**: Detectar e navegar por regras de transição do board
 
@@ -303,6 +304,60 @@ jira_getTransitions({ issueKey: "PROJ-123" })
 jira_transitionIssue({ issueKey: "PROJ-123", transitionId: "31" })
 ```
 
+### 8. **jira_getAttachments**
+Lista todos os anexos de uma issue do Jira Cloud.
+
+**Parâmetros:**
+- `issueKey` (obrigatório): Chave da issue
+
+**Exemplo:**
+```javascript
+jira_getAttachments({ issueKey: "PROJ-123" })
+```
+
+**Retorna:**
+- ID, nome, tamanho, tipo MIME, autor e data de criação de cada anexo
+- `contentUrl`: URL de download na API do Jira
+- `issueBrowseUrl`: Link da issue no Jira
+
+**Dica:** Use o campo `id` retornado com `jira_downloadAttachment` para baixar o arquivo.
+
+### 9. **jira_downloadAttachment**
+Baixa um anexo do Jira Cloud pelo ID.
+
+**Parâmetros:**
+- `attachmentId` (obrigatório): ID do anexo (obtido via `jira_getAttachments`)
+- `outputPath` (opcional): Caminho local para salvar. Se terminar com `/`, o nome original do arquivo é usado
+- `asBase64` (opcional): Se `true`, retorna o conteúdo em base64 (máx. 5 MB) em vez de salvar em disco
+
+**Exemplo:**
+```javascript
+// 1. Listar anexos
+jira_getAttachments({ issueKey: "PROJ-123" })
+
+// 2. Salvar em arquivo específico
+jira_downloadAttachment({
+  attachmentId: "10001",
+  outputPath: "/tmp/screenshot.png"
+})
+
+// 3. Salvar em diretório (usa nome original do anexo)
+jira_downloadAttachment({
+  attachmentId: "10001",
+  outputPath: "/tmp/anexos/"
+})
+
+// 4. Retornar conteúdo pequeno em base64
+jira_downloadAttachment({
+  attachmentId: "10001",
+  asBase64: true
+})
+```
+
+**Retorna:**
+- Com `outputPath`: caminho salvo (`savedTo`), tamanho e tipo MIME
+- Com `asBase64`: conteúdo em base64 no campo `contentBase64`
+
 ## 📝 Exemplos de Uso
 
 ### Buscar minhas issues em progresso:
@@ -346,6 +401,18 @@ jira_getComments({
 jira_addComment({
   issueKey: "PROJ-123",
   body: "Atualização: Implementei a funcionalidade solicitada. Aguardando revisão."
+})
+```
+
+### Baixar anexos de uma issue:
+```javascript
+// 1. Listar anexos disponíveis
+jira_getAttachments({ issueKey: "PROJ-123" })
+
+// 2. Baixar o primeiro anexo para disco
+jira_downloadAttachment({
+  attachmentId: "10001",
+  outputPath: "/tmp/anexos/"
 })
 ```
 
@@ -498,6 +565,8 @@ cp .test.env.example .env
   - `getTransitions`: Obter transições disponíveis
   - `addComment`: Adicionar comentário
   - `addWorklog`: Adicionar worklog
+  - `getAttachments`: Listar anexos de uma issue
+  - `downloadAttachment`: Baixar anexo para disco
 
 ### Notas sobre Testes
 

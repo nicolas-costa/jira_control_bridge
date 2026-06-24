@@ -6,6 +6,10 @@ import {
   CallToolRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import fetch from "node-fetch";
+import fs from "fs/promises";
+import path from "path";
+
+const MAX_ATTACHMENT_BASE64_BYTES = 5 * 1024 * 1024;
 
 // Carregar variáveis de ambiente do .env apenas em desenvolvimento
 // Em produção, as variáveis devem vir do ambiente (não usar dotenv)
@@ -103,14 +107,80 @@ async function jiraFetch(method, path, body) {
   return json ?? {};
 }
 
+async function jiraFetchBinary(method, urlOrPath) {
+  const base = process.env.JIRA_BASE_URL?.replace(/\/$/, "");
+  const email = process.env.JIRA_EMAIL;
+  const token = process.env.JIRA_API_TOKEN;
+  if (!base || !email || !token) {
+    throw new Error("Env ausente: JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN.");
+  }
+
+  const url = /^https?:\/\//i.test(urlOrPath) ? urlOrPath : `${base}${urlOrPath}`;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "Authorization": basicAuthHeader(email, token),
+      "Accept": "*/*"
+    }
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Jira API ${res.status} ${res.statusText}: ${text || res.statusText}`);
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return {
+    buffer,
+    contentType: res.headers.get("content-type")
+  };
+}
+
+function mapJiraAttachment(attachment) {
+  return {
+    id: attachment.id,
+    filename: attachment.filename,
+    size: attachment.size,
+    mimeType: attachment.mimeType,
+    created: attachment.created,
+    author: attachment.author?.displayName || attachment.author?.accountId || null,
+    contentUrl: attachment.content,
+    thumbnailUrl: attachment.thumbnail || null
+  };
+}
+
+function resolveAttachmentOutputPath(outputPath, filename) {
+  const resolved = path.resolve(outputPath);
+  const looksLikeDirectory = outputPath.endsWith("/") || outputPath.endsWith(path.sep);
+  if (looksLikeDirectory) {
+    return path.join(resolved, filename);
+  }
+  return resolved;
+}
+
+function validateAttachmentDownloadMode({ outputPath, asBase64 }) {
+  if (!outputPath && !asBase64) {
+    throw new Error("Informe 'outputPath' para salvar em disco ou 'asBase64: true' para retornar o conteúdo.");
+  }
+  if (outputPath && asBase64) {
+    throw new Error("Use apenas um modo: 'outputPath' ou 'asBase64', não ambos.");
+  }
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 // ---------- MCP Server ----------
 class JiraMCPServer {
   constructor() {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.6.0",
-        description: "MCP Server para gerenciar issues, worklogs, comentários e transições no Jira Cloud."
+        version: "1.7.0",
+        description: "MCP Server para gerenciar issues, worklogs, comentários, anexos e transições no Jira Cloud."
       },
       {
         capabilities: {
@@ -272,6 +342,38 @@ class JiraMCPServer {
                 }
               }
             }
+          },
+          {
+            name: "jira_getAttachments",
+            title: "Obter Anexos",
+            description: "Lista todos os anexos de uma issue do Jira Cloud, incluindo ID, nome, tamanho, tipo MIME e URL de download.",
+            inputSchema: {
+              type: "object",
+              required: ["issueKey"],
+              properties: {
+                issueKey: { type: "string", description: "Chave da issue (ex.: ABC-123)" }
+              }
+            }
+          },
+          {
+            name: "jira_downloadAttachment",
+            title: "Baixar Anexo",
+            description: "Baixa um anexo do Jira Cloud pelo ID. Salva em disco via outputPath ou retorna base64 (limite de 5 MB). Use jira_getAttachments para obter o attachmentId.",
+            inputSchema: {
+              type: "object",
+              required: ["attachmentId"],
+              properties: {
+                attachmentId: { type: "string", description: "ID do anexo (obtido via jira_getAttachments)" },
+                outputPath: {
+                  type: "string",
+                  description: "Caminho local para salvar o arquivo. Se terminar com '/', usa o nome original do anexo."
+                },
+                asBase64: {
+                  type: "boolean",
+                  description: "Se true, retorna o conteúdo em base64 em vez de salvar em disco (máx. 5 MB)."
+                }
+              }
+            }
           }
         ]
       };
@@ -307,6 +409,12 @@ class JiraMCPServer {
           case "jira_transitionIssue":
           case "jira.transitionIssue":  // Fallback legado para normalização do cliente
             return await this.transitionIssue(args);
+          case "jira_getAttachments":
+          case "jira.getAttachments":  // Fallback legado para normalização do cliente
+            return await this.getAttachments(args);
+          case "jira_downloadAttachment":
+          case "jira.downloadAttachment":  // Fallback legado para normalização do cliente
+            return await this.downloadAttachment(args);
           default:
             throw new Error(`Ferramenta desconhecida: ${name}`);
         }
@@ -755,6 +863,89 @@ class JiraMCPServer {
     };
   }
 
+  async getAttachments(args) {
+    const { issueKey } = args;
+    const res = await jiraFetch(
+      "GET",
+      `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=attachment`
+    );
+
+    const base = process.env.JIRA_BASE_URL?.replace(/\/$/, "") || "";
+    const issueBrowseUrl = base ? `${base}/browse/${issueKey}` : null;
+    const attachments = (res.fields?.attachment || []).map(mapJiraAttachment);
+
+    const payload = {
+      issueKey,
+      issueBrowseUrl,
+      total: attachments.length,
+      attachments
+    };
+
+    return {
+      content: [{
+        type: "text",
+        text: `📎 **Anexos da issue ${issueKey}** (${attachments.length} total):\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n\n**Dica:** Use o campo \`id\` de cada anexo com \`jira_downloadAttachment\` para baixar o arquivo.`
+      }]
+    };
+  }
+
+  async downloadAttachment(args) {
+    const { attachmentId, outputPath, asBase64 = false } = args;
+    validateAttachmentDownloadMode({ outputPath, asBase64 });
+
+    const metadata = await jiraFetch("GET", `/rest/api/3/attachment/${encodeURIComponent(attachmentId)}`);
+    const filename = metadata.filename || `attachment-${attachmentId}`;
+    const size = metadata.size ?? 0;
+    const mimeType = metadata.mimeType || null;
+
+    if (asBase64 && size > MAX_ATTACHMENT_BASE64_BYTES) {
+      throw new Error(
+        `Anexo muito grande para base64 (${formatBytes(size)}). Limite: ${formatBytes(MAX_ATTACHMENT_BASE64_BYTES)}. Use 'outputPath' para salvar em disco.`
+      );
+    }
+
+    const { buffer, contentType } = await jiraFetchBinary(
+      "GET",
+      `/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`
+    );
+
+    if (outputPath) {
+      const targetPath = resolveAttachmentOutputPath(outputPath, filename);
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      await fs.writeFile(targetPath, buffer);
+
+      const payload = {
+        attachmentId,
+        filename,
+        size: buffer.length,
+        mimeType: mimeType || contentType,
+        savedTo: targetPath
+      };
+
+      return {
+        content: [{
+          type: "text",
+          text: `✅ **Anexo baixado com sucesso!**\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
+        }]
+      };
+    }
+
+    const payload = {
+      attachmentId,
+      filename,
+      size: buffer.length,
+      mimeType: mimeType || contentType,
+      contentBase64: buffer.toString("base64")
+    };
+
+    return {
+      content: [{
+        type: "text",
+        text: `✅ **Anexo ${filename}** (${formatBytes(buffer.length)}):\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
+      }]
+    };
+  }
+
   async transitionIssue(args) {
     const { issueKey, transitionId, fields, comment } = args;
     
@@ -799,7 +990,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira v1.6.0 iniciado');
+    console.error('🚀 Servidor MCP Jira v1.7.0 iniciado');
   }
 }
 

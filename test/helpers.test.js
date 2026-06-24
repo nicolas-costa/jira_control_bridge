@@ -5,6 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
+import path from 'path';
 
 // Importar funções auxiliares (precisamos exportá-las do server.js)
 // Por enquanto, vamos duplicar as funções para teste ou criar um módulo separado
@@ -188,5 +189,82 @@ test('extractTextFromADF - lida com estrutura aninhada', () => {
   assert(result.includes('fim'), 'Deve conter "fim"');
   // Remover espaços extras para comparação
   assert.strictEqual(result.replace(/\s+/g, ' ').trim(), 'Início meio fim');
+});
+
+function mapJiraAttachment(attachment) {
+  return {
+    id: attachment.id,
+    filename: attachment.filename,
+    size: attachment.size,
+    mimeType: attachment.mimeType,
+    created: attachment.created,
+    author: attachment.author?.displayName || attachment.author?.accountId || null,
+    contentUrl: attachment.content,
+    thumbnailUrl: attachment.thumbnail || null
+  };
+}
+
+function resolveAttachmentOutputPath(outputPath, filename) {
+  const resolved = path.resolve(outputPath);
+  const looksLikeDirectory = outputPath.endsWith("/") || outputPath.endsWith(path.sep);
+  if (looksLikeDirectory) {
+    return path.join(resolved, filename);
+  }
+  return resolved;
+}
+
+function validateAttachmentDownloadMode({ outputPath, asBase64 }) {
+  if (!outputPath && !asBase64) {
+    throw new Error("Informe 'outputPath' para salvar em disco ou 'asBase64: true' para retornar o conteúdo.");
+  }
+  if (outputPath && asBase64) {
+    throw new Error("Use apenas um modo: 'outputPath' ou 'asBase64', não ambos.");
+  }
+}
+
+test('mapJiraAttachment - mapeia campos principais', () => {
+  const result = mapJiraAttachment({
+    id: '10001',
+    filename: 'screenshot.png',
+    size: 2048,
+    mimeType: 'image/png',
+    created: '2025-06-24T10:00:00.000+0000',
+    author: { displayName: 'Nicolas' },
+    content: 'https://example.atlassian.net/rest/api/3/attachment/content/10001',
+    thumbnail: 'https://example.atlassian.net/rest/api/3/attachment/thumbnail/10001'
+  });
+
+  assert.deepStrictEqual(result, {
+    id: '10001',
+    filename: 'screenshot.png',
+    size: 2048,
+    mimeType: 'image/png',
+    created: '2025-06-24T10:00:00.000+0000',
+    author: 'Nicolas',
+    contentUrl: 'https://example.atlassian.net/rest/api/3/attachment/content/10001',
+    thumbnailUrl: 'https://example.atlassian.net/rest/api/3/attachment/thumbnail/10001'
+  });
+});
+
+test('resolveAttachmentOutputPath - usa nome original em diretório', () => {
+  const result = resolveAttachmentOutputPath('/tmp/anexos/', 'file.pdf');
+  assert(result.endsWith(`${path.sep}file.pdf`));
+});
+
+test('resolveAttachmentOutputPath - preserva caminho de arquivo', () => {
+  const result = resolveAttachmentOutputPath('/tmp/custom-name.pdf', 'file.pdf');
+  assert.strictEqual(result, path.resolve('/tmp/custom-name.pdf'));
+});
+
+test('validateAttachmentDownloadMode - exige um modo', () => {
+  assert.throws(() => {
+    validateAttachmentDownloadMode({ outputPath: null, asBase64: false });
+  }, /outputPath/);
+});
+
+test('validateAttachmentDownloadMode - rejeita modos simultâneos', () => {
+  assert.throws(() => {
+    validateAttachmentDownloadMode({ outputPath: '/tmp/file.pdf', asBase64: true });
+  }, /apenas um modo/);
 });
 

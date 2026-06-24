@@ -1,5 +1,31 @@
 # Changelog - MCP Jira Server
 
+## [1.7.0] - 2025-06-24
+
+### ✨ Novas Funcionalidades
+
+#### ✅ Listar Anexos (`jira_getAttachments`)
+- **Nova ferramenta:** Lista todos os anexos de uma issue do Jira Cloud
+- **Funcionalidades:**
+  - Retorna ID, nome, tamanho, tipo MIME, autor, data de criação
+  - URL de download (`contentUrl`) e thumbnail quando disponível
+  - Link da issue no Jira (`issueBrowseUrl`) para contexto
+- **Parâmetros:**
+  - `issueKey` (obrigatório): Chave da issue
+- **Impacto:** Permite descobrir anexos de um card antes de baixá-los
+
+#### ✅ Baixar Anexos (`jira_downloadAttachment`)
+- **Nova ferramenta:** Baixa um anexo do Jira Cloud pelo ID
+- **Funcionalidades:**
+  - Salva em disco via `outputPath` (aceita diretório terminando em `/`)
+  - Alternativa `asBase64: true` para arquivos pequenos (limite de 5 MB)
+  - Cria diretórios pai automaticamente ao salvar
+- **Parâmetros:**
+  - `attachmentId` (obrigatório): ID do anexo (obtido via `jira_getAttachments`)
+  - `outputPath` (opcional): Caminho local para salvar o arquivo
+  - `asBase64` (opcional): Retorna conteúdo em base64 em vez de salvar em disco
+- **Impacto:** Permite baixar screenshots, documentos e outros arquivos anexados aos cards
+
 ## [1.6.0] - 2025-03-17
 
 ### ✨ Novas Funcionalidades
