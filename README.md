@@ -10,6 +10,7 @@ Servidor MCP (Model Context Protocol) para integração com Jira Cloud, permitin
 - **Obter Comentários**: Buscar todos os comentários de uma issue
 - **Adicionar Comentários**: Adicionar comentários em issues
 - **Listar e Baixar Anexos**: Consultar anexos de um card e salvar arquivos localmente
+- **Adicionar Anexos**: Enviar arquivos ao card com ou sem comentário
 - **Gerenciar Transições**: Visualizar transições disponíveis e mover issues entre status
 - **Workflow Inteligente**: Detectar e navegar por regras de transição do board
 
@@ -194,11 +195,12 @@ jira_getComments({
 - Visibilidade
 
 ### 5. **jira_addComment**
-Adiciona um comentário em uma issue do Jira Cloud.
+Adiciona um comentário em uma issue do Jira Cloud. Opcionalmente envia anexos locais junto com o comentário.
 
 **Parâmetros:**
 - `issueKey` (obrigatório): Chave da issue
-- `body` (obrigatório): Conteúdo do comentário (texto simples)
+- `body` (opcional): Conteúdo do comentário (texto simples). Obrigatório se `attachmentPaths` não for informado
+- `attachmentPaths` (opcional): Array de caminhos locais de arquivos para anexar à issue
 - `visibility` (opcional): Visibilidade do comentário
 
 **Exemplo:**
@@ -207,6 +209,13 @@ Adiciona um comentário em uma issue do Jira Cloud.
 jira_addComment({
   issueKey: "PROJ-123",
   body: "Este é um comentário de exemplo"
+})
+
+// Comentário com anexos
+jira_addComment({
+  issueKey: "PROJ-123",
+  body: "Segue evidência do bug em anexo",
+  attachmentPaths: ["/tmp/screenshot.png", "/tmp/log.txt"]
 })
 
 // Comentário com visibilidade restrita
@@ -221,12 +230,10 @@ jira_addComment({
 ```
 
 **Retorna:**
-- ID do comentário criado
-- Autor (nome, email, accountId)
-- Data de criação
-- Conteúdo do comentário
+- ID, autor, data e conteúdo do comentário criado
+- Lista de anexos enviados (quando `attachmentPaths` for usado)
 
-**Nota:** O texto do comentário é automaticamente convertido para o formato ADF (Atlassian Document Format) usado pelo Jira Cloud.
+**Nota:** O texto do comentário é automaticamente convertido para o formato ADF (Atlassian Document Format). Os anexos são vinculados à issue (limitação da API do Jira Cloud), mas aparecem no histórico junto com o comentário.
 
 ### 6. **jira_getTransitions**
 Obtém todas as transições de status disponíveis para uma issue, considerando as regras do workflow do board.
@@ -358,6 +365,32 @@ jira_downloadAttachment({
 - Com `outputPath`: caminho salvo (`savedTo`), tamanho e tipo MIME
 - Com `asBase64`: conteúdo em base64 no campo `contentBase64`
 
+### 10. **jira_addAttachment**
+Envia um ou mais arquivos locais como anexos de uma issue, **sem criar comentário**.
+
+**Parâmetros:**
+- `issueKey` (obrigatório): Chave da issue
+- `filePaths` (obrigatório): Array de caminhos locais dos arquivos
+
+**Exemplo:**
+```javascript
+// Anexar um arquivo
+jira_addAttachment({
+  issueKey: "PROJ-123",
+  filePaths: ["/tmp/screenshot.png"]
+})
+
+// Anexar múltiplos arquivos
+jira_addAttachment({
+  issueKey: "PROJ-123",
+  filePaths: ["/tmp/evidencia.png", "/tmp/console.log"]
+})
+```
+
+**Retorna:**
+- ID, nome, tamanho e tipo MIME de cada anexo criado
+- `issueBrowseUrl`: Link da issue no Jira
+
 ## 📝 Exemplos de Uso
 
 ### Buscar minhas issues em progresso:
@@ -401,6 +434,23 @@ jira_getComments({
 jira_addComment({
   issueKey: "PROJ-123",
   body: "Atualização: Implementei a funcionalidade solicitada. Aguardando revisão."
+})
+```
+
+### Adicionar comentário com anexo:
+```javascript
+jira_addComment({
+  issueKey: "PROJ-123",
+  body: "Segue print do erro",
+  attachmentPaths: ["/tmp/erro.png"]
+})
+```
+
+### Anexar arquivo sem comentário:
+```javascript
+jira_addAttachment({
+  issueKey: "PROJ-123",
+  filePaths: ["/tmp/especificacao.pdf"]
 })
 ```
 
@@ -567,6 +617,7 @@ cp .test.env.example .env
   - `addWorklog`: Adicionar worklog
   - `getAttachments`: Listar anexos de uma issue
   - `downloadAttachment`: Baixar anexo para disco
+  - `addAttachment`: Enviar anexo(s) para uma issue
 
 ### Notas sobre Testes
 

@@ -173,13 +173,103 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function normalizeFilePaths(filePaths) {
+  if (!Array.isArray(filePaths) || filePaths.length === 0) {
+    throw new Error("Informe ao menos um caminho em 'filePaths'.");
+  }
+  return [...new Set(filePaths.map((p) => path.resolve(String(p).trim())))];
+}
+
+async function assertFilesExist(filePaths) {
+  const resolved = normalizeFilePaths(filePaths);
+  for (const filePath of resolved) {
+    let stat;
+    try {
+      stat = await fs.stat(filePath);
+    } catch {
+      throw new Error(`Arquivo não encontrado: ${filePath}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`Caminho não é um arquivo: ${filePath}`);
+    }
+  }
+  return resolved;
+}
+
+function buildCommentBodyADF(text) {
+  const trimmed = text?.trim() || "";
+  if (!trimmed) {
+    return { type: "doc", version: 1, content: [] };
+  }
+  return {
+    type: "doc",
+    version: 1,
+    content: [{
+      type: "paragraph",
+      content: [{ type: "text", text: trimmed }]
+    }]
+  };
+}
+
+async function jiraUploadAttachments(issueKey, filePaths) {
+  const resolvedPaths = await assertFilesExist(filePaths);
+  const base = process.env.JIRA_BASE_URL?.replace(/\/$/, "");
+  const email = process.env.JIRA_EMAIL;
+  const token = process.env.JIRA_API_TOKEN;
+  if (!base || !email || !token) {
+    throw new Error("Env ausente: JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN.");
+  }
+
+  const form = new FormData();
+  for (const filePath of resolvedPaths) {
+    const buffer = await fs.readFile(filePath);
+    const filename = path.basename(filePath);
+    form.append("file", new Blob([buffer]), filename);
+  }
+
+  const res = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issueKey)}/attachments`, {
+    method: "POST",
+    headers: {
+      "Authorization": basicAuthHeader(email, token),
+      "Accept": "application/json",
+      "X-Atlassian-Token": "no-check"
+    },
+    body: form
+  });
+
+  const text = await res.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch (parseError) {
+    console.error("⚠️ Erro ao fazer parse da resposta JSON:", parseError.message);
+    json = { raw: text };
+  }
+
+  if (!res.ok) {
+    let msg;
+    if (json?.errorMessages?.length) {
+      msg = json.errorMessages.join(" | ");
+    } else if (json?.errors) {
+      msg = typeof json.errors === "object"
+        ? JSON.stringify(json.errors)
+        : json.errors;
+    } else {
+      msg = text || res.statusText;
+    }
+    throw new Error(`Jira API ${res.status} ${res.statusText}: ${msg}`);
+  }
+
+  return (json || []).map(mapJiraAttachment);
+}
+
 // ---------- MCP Server ----------
 class JiraMCPServer {
   constructor() {
     this.server = new Server(
       {
         name: "jira-mcp-server",
-        version: "1.7.0",
+        version: "1.8.0",
         description: "MCP Server para gerenciar issues, worklogs, comentários, anexos e transições no Jira Cloud."
       },
       {
@@ -288,15 +378,20 @@ class JiraMCPServer {
           {
             name: "jira_addComment",
             title: "Adicionar Comentário",
-            description: "Adiciona um comentário em uma issue do Jira Cloud.",
+            description: "Adiciona um comentário em uma issue do Jira Cloud. Opcionalmente envia anexos locais junto com o comentário.",
             inputSchema: {
               type: "object",
-              required: ["issueKey", "body"],
+              required: ["issueKey"],
               properties: {
                 issueKey: { type: "string", description: "Chave da issue (ex.: ABC-123)" },
                 body: {
                   type: "string",
-                  description: "Conteúdo do comentário (texto simples). Será convertido para formato ADF automaticamente."
+                  description: "Conteúdo do comentário (texto simples). Obrigatório se 'attachmentPaths' não for informado."
+                },
+                attachmentPaths: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Caminhos locais de arquivos para anexar à issue junto com o comentário."
                 },
                 visibility: {
                   type: "object",
@@ -374,6 +469,24 @@ class JiraMCPServer {
                 }
               }
             }
+          },
+          {
+            name: "jira_addAttachment",
+            title: "Adicionar Anexo",
+            description: "Envia um ou mais arquivos locais como anexos de uma issue, sem criar comentário.",
+            inputSchema: {
+              type: "object",
+              required: ["issueKey", "filePaths"],
+              properties: {
+                issueKey: { type: "string", description: "Chave da issue (ex.: ABC-123)" },
+                filePaths: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 1,
+                  description: "Caminhos locais dos arquivos a anexar na issue."
+                }
+              }
+            }
           }
         ]
       };
@@ -415,6 +528,9 @@ class JiraMCPServer {
           case "jira_downloadAttachment":
           case "jira.downloadAttachment":  // Fallback legado para normalização do cliente
             return await this.downloadAttachment(args);
+          case "jira_addAttachment":
+          case "jira.addAttachment":  // Fallback legado para normalização do cliente
+            return await this.addAttachment(args);
           default:
             throw new Error(`Ferramenta desconhecida: ${name}`);
         }
@@ -791,41 +907,54 @@ class JiraMCPServer {
   }
 
   async addComment(args) {
-    const { issueKey, body, visibility } = args;
-    
-    if (!body || typeof body !== 'string' || body.trim().length === 0) {
-      throw new Error("O campo 'body' é obrigatório e deve conter texto.");
+    const { issueKey, body, visibility, attachmentPaths } = args;
+    const trimmedBody = body?.trim() || "";
+    const hasAttachments = Array.isArray(attachmentPaths) && attachmentPaths.length > 0;
+
+    if (!trimmedBody && !hasAttachments) {
+      throw new Error("Informe 'body' e/ou 'attachmentPaths'.");
     }
-    
-    // Converter texto simples para formato ADF (Atlassian Document Format)
-    const bodyADF = {
-      type: "doc",
-      version: 1,
-      content: [{
-        type: "paragraph",
-        content: [{ type: "text", text: body.trim() }]
-      }]
-    };
-    
+
+    const commentText = trimmedBody || "📎";
     const requestBody = {
-      body: bodyADF,
+      body: buildCommentBodyADF(commentText),
       ...(visibility ? { visibility } : {})
     };
-    
+
     const data = await jiraFetch("POST", `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`, requestBody);
-    
-    // Extrair texto do comentário criado para resposta
-    let commentText = '';
-    if (data.body && typeof data.body === 'object' && data.body.content) {
-      commentText = this.extractTextFromADF(data.body);
-    } else if (typeof data.body === 'string') {
-      commentText = data.body;
+
+    let uploadedAttachments = [];
+    if (hasAttachments) {
+      uploadedAttachments = await jiraUploadAttachments(issueKey, attachmentPaths);
     }
-    
+
+    let responseText = "";
+    if (data.body && typeof data.body === "object" && data.body.content) {
+      responseText = this.extractTextFromADF(data.body);
+    } else if (typeof data.body === "string") {
+      responseText = data.body;
+    }
+
+    const base = process.env.JIRA_BASE_URL?.replace(/\/$/, "") || "";
+    const payload = {
+      issueKey,
+      issueBrowseUrl: base ? `${base}/browse/${issueKey}` : null,
+      comment: {
+        id: data.id,
+        author: data.author?.displayName || null,
+        created: data.created || null,
+        body: responseText || commentText
+      },
+      attachments: uploadedAttachments,
+      note: hasAttachments
+        ? "Os anexos são vinculados à issue (limitação da API do Jira Cloud), mas aparecem no histórico junto com o comentário."
+        : null
+    };
+
     return {
       content: [{
         type: "text",
-        text: `✅ **Comentário adicionado com sucesso na issue ${issueKey}!**\n\n**ID do comentário:** ${data.id}\n**Autor:** ${data.author?.displayName || 'N/A'}\n**Criado em:** ${data.created || 'N/A'}\n**Conteúdo:**\n${commentText || body.trim()}`
+        text: `✅ **Comentário adicionado na issue ${issueKey}!**\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
       }]
     };
   }
@@ -946,6 +1075,26 @@ class JiraMCPServer {
     };
   }
 
+  async addAttachment(args) {
+    const { issueKey, filePaths } = args;
+    const attachments = await jiraUploadAttachments(issueKey, filePaths);
+
+    const base = process.env.JIRA_BASE_URL?.replace(/\/$/, "") || "";
+    const payload = {
+      issueKey,
+      issueBrowseUrl: base ? `${base}/browse/${issueKey}` : null,
+      total: attachments.length,
+      attachments
+    };
+
+    return {
+      content: [{
+        type: "text",
+        text: `✅ **Anexo(s) adicionado(s) à issue ${issueKey}** (${attachments.length} arquivo(s)):\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
+      }]
+    };
+  }
+
   async transitionIssue(args) {
     const { issueKey, transitionId, fields, comment } = args;
     
@@ -990,7 +1139,7 @@ class JiraMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🚀 Servidor MCP Jira v1.7.0 iniciado');
+    console.error('🚀 Servidor MCP Jira v1.8.0 iniciado');
   }
 }
 

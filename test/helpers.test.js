@@ -268,3 +268,54 @@ test('validateAttachmentDownloadMode - rejeita modos simultâneos', () => {
   }, /apenas um modo/);
 });
 
+function normalizeFilePaths(filePaths) {
+  if (!Array.isArray(filePaths) || filePaths.length === 0) {
+    throw new Error("Informe ao menos um caminho em 'filePaths'.");
+  }
+  return [...new Set(filePaths.map((p) => path.resolve(String(p).trim())))];
+}
+
+function buildCommentBodyADF(text) {
+  const trimmed = text?.trim() || "";
+  if (!trimmed) {
+    return { type: "doc", version: 1, content: [] };
+  }
+  return {
+    type: "doc",
+    version: 1,
+    content: [{
+      type: "paragraph",
+      content: [{ type: "text", text: trimmed }]
+    }]
+  };
+}
+
+test('normalizeFilePaths - resolve caminhos únicos', () => {
+  const result = normalizeFilePaths(['/tmp/a.txt', '/tmp/b.txt']);
+  assert.strictEqual(result.length, 2);
+  assert.strictEqual(result[0], path.resolve('/tmp/a.txt'));
+});
+
+test('normalizeFilePaths - exige ao menos um arquivo', () => {
+  assert.throws(() => {
+    normalizeFilePaths([]);
+  }, /filePaths/);
+});
+
+test('buildCommentBodyADF - gera parágrafo com texto', () => {
+  const result = buildCommentBodyADF('Olá mundo');
+  assert.deepStrictEqual(result, {
+    type: 'doc',
+    version: 1,
+    content: [{
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Olá mundo' }]
+    }]
+  });
+});
+
+test('buildCommentBodyADF - retorna documento vazio sem texto', () => {
+  const result = buildCommentBodyADF('   ');
+  assert.deepStrictEqual(result, { type: 'doc', version: 1, content: [] });
+});
+

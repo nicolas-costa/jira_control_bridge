@@ -1,5 +1,28 @@
 # Changelog - MCP Jira Server
 
+## [1.8.0] - 2026-07-16
+
+### ✨ Novas Funcionalidades
+
+#### ✅ Adicionar Anexos (`jira_addAttachment`)
+- **Nova ferramenta:** Envia um ou mais arquivos locais como anexos de uma issue, sem criar comentário
+- **Funcionalidades:**
+  - Upload multipart para a API do Jira Cloud
+  - Suporte a múltiplos arquivos em uma única chamada
+  - Validação de existência dos arquivos locais antes do envio
+- **Parâmetros:**
+  - `issueKey` (obrigatório): Chave da issue
+  - `filePaths` (obrigatório): Array de caminhos locais dos arquivos
+- **Impacto:** Permite anexar screenshots, logs e documentos diretamente ao card
+
+#### ✅ Comentário com Anexos (`jira_addComment`)
+- **Melhoria:** `jira_addComment` agora aceita `attachmentPaths` para enviar arquivos junto com o comentário
+- **Funcionalidades:**
+  - Cria o comentário e em seguida faz upload dos anexos na issue
+  - `body` passa a ser opcional quando `attachmentPaths` é informado
+- **Limitação documentada:** A API do Jira Cloud vincula anexos à issue (não ao comentário em si), mas ambos aparecem no histórico de atividades
+- **Impacto:** Permite fluxos como "segue evidência em anexo" em uma única operação
+
 ## [1.7.0] - 2025-06-24
 
 ### ✨ Novas Funcionalidades
